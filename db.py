@@ -64,6 +64,10 @@ def soft_delete(car_id: str) -> None:
     _get().table("listings").update({"is_active": False}).eq("id", car_id).execute()
 
 
+def hard_delete(car_id: str) -> None:
+    _get().table("listings").delete().eq("id", car_id).execute()
+
+
 # ── read ───────────────────────────────────────────────────────────────────
 
 def fetch_active() -> list[dict]:

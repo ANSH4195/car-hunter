@@ -48,8 +48,8 @@ def _parse_card(card) -> CarListing | None:
             src = img_el.get("src") or img_el.get("data-src") or ""
             image_url = src if src.startswith("http") else f"{BASE}{src}"
 
-        price_el  = card.find(string=re.compile(r"₹|Rs\.?", re.I))
-        price     = parse_price(str(price_el)) if price_el else 0
+        price_el  = card.select_one("span.posted_by")
+        price     = parse_price(price_el.get_text(strip=True)) if price_el else 0
 
         km_el = card.find(string=re.compile(r"\d+\s*km", re.I))
         kms   = parse_kms(str(km_el)) if km_el else 0

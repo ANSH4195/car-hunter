@@ -1,4 +1,5 @@
 import streamlit as st
+from datetime import datetime
 import db
 
 st.set_page_config(page_title="Car Hunter", layout="wide")
@@ -17,7 +18,7 @@ with st.sidebar:
     price_max = st.number_input("Max Price (₹)", value=7_000_000, step=500_000, format="%d")
     kms_max   = st.number_input("Max KMs", value=150_000, step=10_000, format="%d")
     trans_filter = st.multiselect("Transmission", ["Automatic", "Manual"])
-    sort_by = st.selectbox("Sort by", ["Price ↑", "Price ↓", "Year ↓", "KMs ↑", "Newest first"])
+    sort_by = st.selectbox("Sort by", ["Price ↑", "Price ↓", "Year ↓", "KMs ↑", "Newest first"], index=4)
     st.divider()
     if st.button("🔄 Refresh"):
         st.cache_data.clear()
@@ -52,7 +53,7 @@ sort_key = {
     "Price ↓":      lambda r: -(r["price"] or 0),
     "Year ↓":       lambda r: -(r["year"] or 0),
     "KMs ↑":        lambda r: r["kms"] or 0,
-    "Newest first": lambda r: r.get("first_seen") or "",
+    "Newest first": lambda r: -(datetime.fromisoformat(r["first_seen"]).toordinal() if r.get("first_seen") else 0),
 }[sort_by]
 rows.sort(key=sort_key)
 
@@ -68,7 +69,7 @@ SOURCE_COLORS = {
 }
 
 for row in rows:
-    col_img, col_info, col_price, col_del = st.columns([1, 3.5, 1.5, 0.4])
+    col_img, col_info, col_price, col_del = st.columns([1, 3.5, 1.5, 1.2])
 
     # Thumbnail
     with col_img:
@@ -119,11 +120,15 @@ for row in rows:
         if first_seen:
             st.caption(f"Since {first_seen}")
 
-    # Delete
+    # Actions
     with col_del:
         st.markdown("<div style='height:18px'></div>", unsafe_allow_html=True)
-        if st.button("✕", key=f"del_{row['id']}", help="Remove from list"):
+        if st.button("Not interested", key=f"hide_{row['id']}", use_container_width=True, help="Hide this listing permanently"):
             db.soft_delete(row["id"])
+            st.cache_data.clear()
+            st.rerun()
+        if st.button("🗑️ Delete", key=f"del_{row['id']}", use_container_width=True, help="Remove from DB — will be re-fetched next scrape run"):
+            db.hard_delete(row["id"])
             st.cache_data.clear()
             st.rerun()
 

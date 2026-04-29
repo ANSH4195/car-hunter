@@ -46,6 +46,9 @@ python scrape.py       # run scraper
 streamlit run app.py   # UI at localhost:8501
 ```
 
+## Changelog
+Maintain `CHANGELOG.md` in the repo root. Format: `## YYYY-MM-DD` header, bullet points. Only log significant changes (new features, bug fixes with user impact, schema changes) — not minor refactors or dependency bumps.
+
 ## Target Criteria (filters.py)
 - Makes/Models: Audi A3/Q3/Q5/Q7, VW Tiguan, Skoda Octavia, Jeep Compass
 - Fuel: diesel only
