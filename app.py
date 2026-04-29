@@ -15,7 +15,7 @@ with st.sidebar:
     make_filter = st.multiselect("Make", ["Audi", "Volkswagen", "Skoda", "Jeep"])
     model_filter = st.multiselect("Model", ["A3", "Q3", "Q5", "Q7", "Tiguan", "Octavia", "Compass"])
     year_min, year_max = st.slider("Year", 2019, 2025, (2019, 2025))
-    price_max = st.number_input("Max Price (₹)", value=7_000_000, step=500_000, format="%d")
+    price_max = st.number_input("Max Price (₹)", value=2_500_000, step=500_000, format="%d")
     kms_max   = st.number_input("Max KMs", value=150_000, step=10_000, format="%d")
     trans_filter = st.multiselect("Transmission", ["Automatic", "Manual"])
     sort_by = st.selectbox("Sort by", ["Price ↑", "Price ↓", "Year ↓", "KMs ↑", "Newest first"], index=4)

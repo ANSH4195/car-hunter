@@ -9,6 +9,7 @@ TARGET: dict[str, list[str]] = {
 
 MIN_YEAR   = 2019   # strictly > 2018
 MAX_KMS    = 150_000
+MAX_PRICE  = 2_500_000
 FUEL       = "diesel"
 
 
@@ -18,6 +19,8 @@ def is_valid(car: CarListing) -> bool:
     if car.year < MIN_YEAR:
         return False
     if car.kms >= MAX_KMS:
+        return False
+    if car.price > MAX_PRICE:
         return False
 
     make  = car.make.lower().strip()
