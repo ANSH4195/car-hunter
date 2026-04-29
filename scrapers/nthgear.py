@@ -1,11 +1,11 @@
 """
 9thGear scraper — Bangalore luxury used cars.
-Static HTML site. Confirmed structure:
-  Image: /images/upload/cars/{id}-{timestamp}-{filename}.webp
-  Title: <h3> (ALL CAPS)
-  Price: element containing ₹
-  Fuel/KMs: near icon images (icon-fuel.webp, icon-km.webp)
-  Link: /luxury-used-cars/{slug}/{id}/
+Card structure confirmed:
+  Container: div.main-car (inside div.col-lg-3.col-md-3.col-sm-6)
+  Title: h3 > a (ALL CAPS — converted with .title())
+  Price: span/text containing ₹
+  KMs: text containing km
+  Link: a[href] containing 'luxury-used-cars'
 """
 from __future__ import annotations
 import re
@@ -35,8 +35,6 @@ def _parse_card(card) -> CarListing | None:
             return None
         title = title_el.get_text(strip=True).title()  # 9thGear is ALL CAPS
 
-        # Quick make filter before calling Gemini
-        make_check = title.lower().split()[0] if title else ""
         if not any(m in title.lower() for m in TARGET_MAKES):
             return None
 
@@ -50,19 +48,15 @@ def _parse_card(card) -> CarListing | None:
             src = img_el.get("src") or img_el.get("data-src") or ""
             image_url = src if src.startswith("http") else f"{BASE}{src}"
 
-        # Price
         price_el  = card.find(string=re.compile(r"₹|Rs\.?", re.I))
         price     = parse_price(str(price_el)) if price_el else 0
 
-        # KMs — text near the km icon
         km_el = card.find(string=re.compile(r"\d+\s*km", re.I))
         kms   = parse_kms(str(km_el)) if km_el else 0
 
-        # Registration/year near year-icon — e.g. "KA 51 ..." or just a year
         year_m = re.search(r"\b(20\d{2})\b", card.get_text())
         year   = int(year_m.group(1)) if year_m else 0
 
-        # Use Gemini to parse make/model/variant from title
         parsed = normalize(title)
         if not parsed:
             return None
@@ -107,13 +101,7 @@ def scrape() -> list[CarListing]:
                 if resp.status_code != 200:
                     break
                 soup  = BeautifulSoup(resp.text, "html.parser")
-                # Cards confirmed to be divs; try multiple selectors
-                cards = (
-                    soup.select(".car-card")
-                    or soup.select("[class*='car-card']")
-                    or soup.select(".listing-item")
-                    or soup.select(".col-md-4")   # common bootstrap grid
-                )
+                cards = soup.select(".main-car")
                 if not cards:
                     break
                 for card in cards:

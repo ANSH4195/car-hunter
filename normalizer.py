@@ -10,7 +10,7 @@ import re
 import google.generativeai as genai
 
 genai.configure(api_key=os.environ["GEMINI_API_KEY"])
-_model = genai.GenerativeModel("gemini-2.0-flash-lite")
+_model = genai.GenerativeModel("gemini-2.5-flash")
 
 _PROMPT = """Extract used car listing details from the text below.
 Return ONLY valid JSON with these keys (use null if unknown):

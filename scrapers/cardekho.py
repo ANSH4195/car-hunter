@@ -1,7 +1,11 @@
 """
 CarDekho scraper — Karnataka, Diesel, target makes.
-Images served from images10.gaadi.com.
-Listing links: /used-car-details/used-{make}-{model}-cars-{city}_{id}.htm
+Card structure confirmed:
+  Container: div.NewUcExCard
+  Title: div.titlebox h3  → "YEAR Make Model Variant" (year may be prepended)
+  Specs: text near titlebox  → "X kms • Fuel • Transmission"
+  Price: element with class containing 'price'
+  Link: a[href] → /used-car-details/...
 """
 from __future__ import annotations
 import re
@@ -22,43 +26,16 @@ HEADERS = {
 
 
 def _search_url(make: str, page: int = 1) -> str:
-    return (
-        f"{BASE}/used-cars/used-cars-in-karnataka"
-        f"?fuel=Diesel&make={make}&page={page}"
-    )
+    return f"{BASE}/used-cars/used-{make}-cars-in-karnataka?fuel=Diesel&page={page}"
 
 
 def _parse_card(card) -> CarListing | None:
     try:
-        title_el = card.select_one("h3 a") or card.select_one("h2 a") or card.select_one(".title a")
+        title_el = card.select_one(".titlebox h3") or card.select_one("h3") or card.select_one("h2")
         if not title_el:
             return None
-        title = title_el.get_text(strip=True)
-        href  = title_el.get("href", "")
-        url   = href if href.startswith("http") else f"{BASE}{href}"
+        title = title_el.get_text(" ", strip=True)
 
-        price_el  = card.select_one("[class*='price']") or card.select_one(".price")
-        raw_price = price_el.get_text(strip=True) if price_el else ""
-        price     = parse_price(raw_price) or 0
-
-        # Specs: "45,000 kms • Diesel • Automatic"
-        specs_el = card.select_one("[class*='spec']") or card.select_one(".specs")
-        specs    = specs_el.get_text(" ", strip=True) if specs_el else ""
-
-        km_m = re.search(r"([\d,]+)\s*kms?", specs, re.IGNORECASE)
-        kms  = parse_kms(km_m.group(0)) if km_m else 0
-
-        trans = "Automatic" if "Automatic" in specs else ("Manual" if "Manual" in specs else "")
-
-        location_el = card.select_one("[class*='location']") or card.select_one("[class*='city']")
-        location    = location_el.get_text(strip=True) if location_el else "Karnataka"
-
-        img_el    = card.select_one("img")
-        image_url = ""
-        if img_el:
-            image_url = img_el.get("data-src") or img_el.get("src") or ""
-
-        # Parse title: "2021 Audi Q5 Premium Plus" or "Audi Q5 Premium Plus 2021"
         year_m = re.search(r"\b(20\d{2})\b", title)
         year   = int(year_m.group(1)) if year_m else 0
         title_no_year = re.sub(r"\b20\d{2}\b", "", title).strip()
@@ -66,6 +43,29 @@ def _parse_card(card) -> CarListing | None:
         make   = parts[0] if parts else ""
         model  = parts[1] if len(parts) > 1 else ""
         variant = " ".join(parts[2:]) if len(parts) > 2 else ""
+
+        price_el  = card.select_one("[class*='price']") or card.select_one(".price")
+        raw_price = price_el.get_text(strip=True) if price_el else ""
+        price     = parse_price(raw_price) or 0
+
+        # Specs text: "X kms • Fuel • Transmission"
+        card_text = card.get_text(" ", strip=True)
+        km_m = re.search(r"([\d,]+)\s*kms?", card_text, re.IGNORECASE)
+        kms  = parse_kms(km_m.group(0)) if km_m else 0
+
+        trans = "Automatic" if "Automatic" in card_text else ("Manual" if "Manual" in card_text else "")
+
+        location_el = card.select_one("[class*='location']") or card.select_one("[class*='city']")
+        location    = location_el.get_text(strip=True) if location_el else "Karnataka"
+
+        link_el = card.select_one("a[href*='used-car-details']") or card.select_one("a[href]")
+        href    = link_el["href"] if link_el else ""
+        url     = href if href.startswith("http") else f"{BASE}{href}"
+
+        img_el    = card.select_one("img")
+        image_url = ""
+        if img_el:
+            image_url = img_el.get("data-src") or img_el.get("src") or ""
 
         if not all([make, model, year, price]):
             return None
@@ -93,12 +93,7 @@ def scrape() -> list[CarListing]:
                         print(f"[cardekho] {url} → {resp.status_code}")
                         break
                     soup  = BeautifulSoup(resp.text, "html.parser")
-                    cards = (
-                        soup.select(".gsc_col-sm-12")
-                        or soup.select("[class*='listing']")
-                        or soup.select("[class*='carCard']")
-                        or soup.select("article")
-                    )
+                    cards = soup.select(".NewUcExCard")
                     if not cards:
                         break
                     for card in cards:
