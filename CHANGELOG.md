@@ -1,6 +1,8 @@
 # Changelog
 
 ## 2026-05-01
+- Rewrote Spinny scraper: now uses crawl4ai to render the pre-filtered Spinny search URL, yielding 7 real listings (was 0)
+- Fixed `parse_kms` to handle decimal+K format (e.g. "50.5K km" → 50500; was wrongly parsing to 5000)
 - Added BMW, Mercedes-Benz, Volvo (any model) and Ford Endeavour across all 7 scrapers and filters
 - Audi de-restricted to any model (was A3/Q3/Q5/Q7 only)
 - OLX URL uses single-URL approach: blanket makes get all models, specific makes use model_eq filter

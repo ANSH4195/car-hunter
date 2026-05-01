@@ -1,110 +1,146 @@
 """
-Spinny scraper — Bengaluru, Diesel, target makes.
-Spinny is Next.js; data is in __NEXT_DATA__.
-Also tries their internal API endpoint.
+Spinny scraper — Bengaluru diesel listings via crawl4ai.
+Spinny is a client-side React app; we render with Playwright via crawl4ai.
+Card structure (confirmed):
+  Container: .CarListingCardV2__carListingCardV2Root
+  Make/Year: span.ListingBrandModelDetail__make  → "2017 Mercedes CLA"
+  Variant:   .ListingPricingDetail__variant       → "200 CDI Sport"
+  Price:     [data-price]                         → "1899920" (INR)
+  Link:      a.ListingBrandModelDetail__makeModelLink[href]
+  Image:     img.ListingCarImage__productImage[src or data-src]
+  KMs/trans: parsed from card text (e.g. "50.5K km ... automatic")
+  Location:  .CarListingCardDetail__otherDetails
 """
 from __future__ import annotations
+import asyncio
 import json
 import re
-import httpx
+from urllib.parse import quote
+from bs4 import BeautifulSoup
 from scrapers.base import CarListing
-from normalizer import parse_price, parse_kms
+from normalizer import parse_kms
+from filters import MIN_YEAR, MAX_KMS, MAX_PRICE
 
 SOURCE = "spinny"
-MAKES  = ["audi", "bmw", "mercedes-benz", "volkswagen", "skoda", "jeep", "ford", "volvo"]
+BASE   = "https://www.spinny.com"
 
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
-    "Accept": "application/json, text/html",
+MAKE_NORM = {
+    "audi": "Audi",
+    "bmw": "BMW",
+    "mercedes": "Mercedes-Benz",
+    "mercedes-benz": "Mercedes-Benz",
+    "volkswagen": "Volkswagen",
+    "vw": "Volkswagen",
+    "skoda": "Skoda",
+    "jeep": "Jeep",
+    "ford": "Ford",
+    "volvo": "Volvo",
 }
 
 
-def _search_url(make: str) -> str:
-    return f"https://www.spinny.com/used-cars/bengaluru/{make}/?fuel=Diesel"
+def _listing_url(page: int = 1) -> str:
+    filter_obj: dict = {
+        "fuel_type": ["diesel"],
+        # blanket makes (any model accepted)
+        "make": ["audi", "bmw", "jeep", "mercedes-benz", "volvo"],
+        "max_mileage": [str(MAX_KMS)],
+        "max_price": [MAX_PRICE],
+        "min_year": [str(MIN_YEAR)],
+        # specific models for makes not in the blanket list
+        "model": ["endeavour", "octavia", "tiguan", "tiguan-allspace"],
+    }
+    if page > 1:
+        filter_obj["page"] = [str(page)]
+    return f"{BASE}/used-cars-in-bangalore/s/?filterObject={quote(json.dumps(filter_obj))}"
 
 
-def _api_url(make: str, page: int = 1) -> str:
-    # Spinny internal search API (discovered via network inspection)
-    return (
-        f"https://www.spinny.com/api/v4/cars/search/?"
-        f"city=bengaluru&make={make}&fuel_type=diesel&page={page}&page_size=30"
-    )
-
-
-def _parse_next_data(html: str) -> list[dict]:
-    m = re.search(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', html, re.DOTALL)
-    if not m:
-        return []
+def _parse_card(card) -> CarListing | None:
     try:
-        data  = json.loads(m.group(1))
-        page  = data.get("props", {}).get("pageProps", {})
-        cars  = page.get("cars") or page.get("listings") or page.get("results") or []
-        return cars if isinstance(cars, list) else []
-    except Exception as e:
-        print(f"[spinny] JSON parse error: {e}")
-        return []
+        link_el    = card.select_one("a.ListingBrandModelDetail__makeModelLink")
+        make_el    = card.select_one("span.ListingBrandModelDetail__make")
+        variant_el = card.select_one(".ListingPricingDetail__variant")
+        price_el   = card.select_one("[data-price]")
+        img_el     = card.select_one("img.ListingCarImage__productImage")
+        other_el   = card.select_one(".CarListingCardDetail__otherDetails")
 
+        if not make_el:
+            return None
 
-def _to_listing(raw: dict) -> CarListing | None:
-    try:
-        make     = raw.get("make", "")
-        model    = raw.get("model", "")
-        variant  = raw.get("variant") or raw.get("subvariant", "")
-        year     = int(raw.get("year") or raw.get("make_year") or 0)
-        kms      = int(raw.get("kms_driven") or raw.get("kms") or raw.get("odometer", 0))
-        price    = int(raw.get("price") or raw.get("selling_price") or 0)
-        fuel     = raw.get("fuel_type") or raw.get("fuel", "")
-        trans    = raw.get("transmission", "")
-        color    = raw.get("color") or raw.get("colour", "")
-        location = raw.get("city") or raw.get("location", "Bengaluru")
+        # "2017 Mercedes CLA" → year=2017, make="Mercedes-Benz", model="CLA"
+        parts    = make_el.get_text(strip=True).split()
+        year     = int(parts[0]) if parts and parts[0].isdigit() else 0
+        make_raw = parts[1].lower() if len(parts) > 1 else ""
+        make     = MAKE_NORM.get(make_raw, make_raw.title())
+        model    = parts[2] if len(parts) > 2 else ""
 
-        images   = raw.get("images") or raw.get("car_images") or []
-        img      = images[0] if images else {}
-        image_url = img.get("url") or img.get("image_url") or (img if isinstance(img, str) else "")
+        variant = variant_el.get_text(strip=True) if variant_el else ""
+        price   = int(price_el.get("data-price") or 0) if price_el else 0
 
-        slug     = raw.get("slug") or raw.get("id") or ""
-        url      = f"https://www.spinny.com/used-cars/bengaluru/{slug}/" if slug else "https://www.spinny.com"
+        href = link_el["href"] if link_el else ""
+        url  = href if href.startswith("http") else f"{BASE}{href}"
+
+        img_src = ""
+        if img_el:
+            img_src = img_el.get("src") or img_el.get("data-src") or ""
+            if img_src and img_src.startswith("//"):
+                img_src = "https:" + img_src
+
+        location = other_el.get_text(strip=True) if other_el else "Bangalore"
+
+        card_text = card.get_text(separator=" ", strip=True)
+        km_m = re.search(r"([\d,.]+\s*[Kk]?\s*km)", card_text)
+        kms  = parse_kms(km_m.group(1)) if km_m else 0
+
+        trans = ""
+        if "automatic" in card_text.lower():
+            trans = "Automatic"
+        elif "manual" in card_text.lower():
+            trans = "Manual"
 
         if not all([make, model, year, price]):
             return None
 
         return CarListing(
             make=make, model=model, variant=variant, year=year,
-            kms=kms, fuel=fuel, transmission=trans, color=color,
-            location=location, price=price, image_url=image_url,
+            kms=kms, fuel="Diesel", transmission=trans, color="",
+            location=location, price=price, image_url=img_src,
             source_name=SOURCE, source_url=url,
         )
     except Exception as e:
-        print(f"[spinny] listing parse error: {e}")
+        print(f"[spinny] card parse error: {e}")
         return None
+
+
+async def _fetch_rendered(url: str) -> str:
+    from crawl4ai import AsyncWebCrawler, CrawlerRunConfig
+    config = CrawlerRunConfig(page_timeout=40000, delay_before_return_html=4.0)
+    async with AsyncWebCrawler() as crawler:
+        result = await crawler.arun(url=url, config=config)
+        return result.html or ""
 
 
 def scrape() -> list[CarListing]:
     results: list[CarListing] = []
-    with httpx.Client(headers=HEADERS, timeout=30, follow_redirects=True) as client:
-        for make in MAKES:
-            # Try API first
-            try:
-                resp = client.get(_api_url(make))
-                if resp.status_code == 200:
-                    data = resp.json()
-                    raw_cars = data.get("results") or data.get("cars") or data.get("data") or []
-                    for raw in raw_cars:
-                        listing = _to_listing(raw)
-                        if listing:
-                            results.append(listing)
-                    continue
-            except Exception:
-                pass
-
-            # Fall back to __NEXT_DATA__ HTML parse
-            try:
-                resp = client.get(_search_url(make))
-                if resp.status_code == 200:
-                    for raw in _parse_next_data(resp.text):
-                        listing = _to_listing(raw)
-                        if listing:
-                            results.append(listing)
-            except Exception as e:
-                print(f"[spinny] error for {make}: {e}")
+    seen_urls: set[str] = set()
+    for page in range(1, 5):
+        url = _listing_url(page)
+        try:
+            html  = asyncio.run(_fetch_rendered(url))
+            soup  = BeautifulSoup(html, "html.parser")
+            cards = soup.select(".CarListingCardV2__carListingCardV2Root")
+            if not cards:
+                print(f"[spinny] no cards on page {page}, stopping")
+                break
+            new_this_page = 0
+            for card in cards:
+                listing = _parse_card(card)
+                if listing and listing.source_url not in seen_urls:
+                    seen_urls.add(listing.source_url)
+                    results.append(listing)
+                    new_this_page += 1
+            if new_this_page == 0:
+                break  # pagination returned duplicate page
+        except Exception as e:
+            print(f"[spinny] error page {page}: {e}")
+            break
     return results

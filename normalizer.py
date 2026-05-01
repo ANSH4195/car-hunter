@@ -49,9 +49,9 @@ def parse_price(text: str) -> int | None:
 
 def parse_kms(text: str) -> int | None:
     text = text.lower().replace(",", "")
-    m = re.search(r"([\d]+)\s*k(?:m)?", text)
+    m = re.search(r"([\d]+(?:\.[\d]+)?)\s*k(?:m)?", text)
     if m:
-        val = int(m.group(1))
-        return val * 1000 if val < 1000 else val
+        val = float(m.group(1))
+        return int(val * 1000) if val < 1000 else int(val)
     m = re.search(r"\d+", text)
     return int(m.group()) if m else None
