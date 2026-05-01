@@ -15,7 +15,7 @@ from scrapers.base import CarListing
 from normalizer import parse_price, parse_kms
 
 SOURCE  = "cardekho"
-MAKES   = ["Audi", "Volkswagen", "Skoda", "Jeep", "Ford"]
+MAKES   = ["Audi", "BMW", "Mercedes-Benz", "Volkswagen", "Skoda", "Jeep", "Ford", "Volvo"]
 BASE    = "https://www.cardekho.com"
 
 HEADERS = {

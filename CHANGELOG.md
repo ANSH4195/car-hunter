@@ -1,7 +1,9 @@
 # Changelog
 
 ## 2026-05-01
-- Added Ford Endeavour as a target model across all 7 scrapers and filters
+- Added BMW, Mercedes-Benz, Volvo (any model) and Ford Endeavour across all 7 scrapers and filters
+- Audi de-restricted to any model (was A3/Q3/Q5/Q7 only)
+- OLX URL uses single-URL approach: blanket makes get all models, specific makes use model_eq filter
 
 
 - Fixed OLX scraper: replaced 4 keyword search queries with a single pre-filtered Karnataka-wide URL, yielding actual target listings instead of zero results

@@ -9,7 +9,7 @@ import httpx
 from scrapers.base import CarListing
 
 SOURCE = "cars24"
-MAKES  = ["Audi", "Volkswagen", "Skoda", "Jeep", "Ford"]
+MAKES  = ["Audi", "BMW", "Mercedes-Benz", "Volkswagen", "Skoda", "Jeep", "Ford", "Volvo"]
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",

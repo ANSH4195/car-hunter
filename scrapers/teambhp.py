@@ -24,7 +24,7 @@ HEADERS = {
     "sec-fetch-mode": "navigate",
 }
 
-MAKES   = ["Audi", "Volkswagen", "Skoda", "Jeep", "Ford"]
+MAKES   = ["Audi", "BMW", "Mercedes-Benz", "Volkswagen", "Skoda", "Jeep", "Ford", "Volvo"]
 
 # TeamBHP classifieds search — state=29 is Karnataka, cat=Cars
 def _search_url(make: str, page: int = 1) -> str:

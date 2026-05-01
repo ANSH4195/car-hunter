@@ -1,11 +1,15 @@
 from scrapers.base import CarListing
 
-TARGET: dict[str, list[str]] = {
-    "audi":       ["a3", "q3", "q5", "q7"],
-    "volkswagen": ["tiguan"],
-    "skoda":      ["octavia"],
-    "jeep":       ["compass"],
-    "ford":       ["endeavour"],
+# None = any model accepted; list = only those model prefixes accepted
+TARGET: dict[str, list[str] | None] = {
+    "audi":          None,          # any model
+    "bmw":           None,          # any model
+    "mercedes-benz": None,          # any model
+    "volvo":         None,          # any model
+    "volkswagen":    ["tiguan"],
+    "skoda":         ["octavia"],
+    "jeep":          ["compass"],
+    "ford":          ["endeavour"],
 }
 
 MIN_YEAR   = 2017
@@ -29,7 +33,9 @@ def is_valid(car: CarListing) -> bool:
 
     if make not in TARGET:
         return False
-    if not any(model == t or model.startswith(t) for t in TARGET[make]):
+
+    allowed = TARGET[make]
+    if allowed is not None and not any(model == t or model.startswith(t) for t in allowed):
         return False
 
     # Jeep Compass: pre-2022 must be Limited Plus variant

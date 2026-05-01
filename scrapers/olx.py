@@ -23,21 +23,25 @@ SOURCE = "olx"
 # Maps OLX title keywords → structured make
 MAKE_MAP = {
     "audi": "Audi",
+    "bmw": "BMW",
+    "mercedes-benz": "Mercedes-Benz", "mercedes": "Mercedes-Benz",
     "volkswagen": "Volkswagen", "vw": "Volkswagen",
     "skoda": "Skoda",
     "jeep": "Jeep",
     "ford": "Ford",
+    "volvo": "Volvo",
 }
 
 
 def _listing_url() -> str:
     current_year = datetime.date.today().year
+    # Makes without a model_eq entry → OLX returns all models for that make.
+    # Makes with a model_eq entry → restricted to those models only.
     return (
         "https://www.olx.in/en-in/karnataka_g2001159/cars_c84"
-        "?filter=make_eq_audi-1_and_ford_and_jeep_and_skoda_and_volkswagen"
+        "?filter=make_eq_audi-1_and_bmw_and_ford_and_jeep_and_mercedes-benz_and_skoda_and_volkswagen_and_volvo"
         f"%2Cmileage_max_{MAX_KMS}"
-        "%2Cmodel_eq_audi-1-a3_and_audi-1-q3_and_audi-1-q5_and_audi-1-q7"
-        "_and_ford-endeavour_and_jeep-compass_and_skoda-kodiaq_and_skoda-octavia_and_volkswagen-tiguan"
+        "%2Cmodel_eq_ford-endeavour_and_jeep-compass_and_skoda-kodiaq_and_skoda-octavia_and_volkswagen-tiguan"
         "%2Cpetrol_eq_diesel"
         f"%2Cprice_max_{MAX_PRICE}"
         f"%2Cyear_between_{MIN_YEAR - 1}_to_{current_year}"
