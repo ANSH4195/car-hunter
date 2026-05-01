@@ -7,7 +7,6 @@
   - CSS selectors for listing cards unknown — need one local Playwright run to inspect rendered HTML
   - Parse with BeautifulSoup; fall back to Gemini `normalize()` where selectors fail
   - Wire up: add import + `("precarmart", precarmart.scrape)` to `scrape.py` SCRAPERS list
-- Enable Cars24, Spinny scrapers (currently disabled)
 - UX: Due to deduplication, images may be updating but source links aren't — investigate and fix stale link behaviour
 - UX: Add last fetched date
 - UX: Source navigation click area
