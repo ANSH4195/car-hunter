@@ -5,16 +5,31 @@ import db
 st.set_page_config(page_title="Car Hunter", layout="wide")
 st.title("🔍 Car Hunter — Karnataka Used Cars")
 
+# ── load data ──────────────────────────────────────────────────────────────
+@st.cache_data(ttl=300)
+def load() -> list[dict]:
+    return db.fetch_active()
+
+all_rows = load()
+
+# ── derive filter options from actual data ─────────────────────────────────
+def _sources(row: dict) -> list[str]:
+    return list((row.get("sources") or {}).keys())
+
+all_sources = sorted({s for r in all_rows for s in _sources(r)})
+all_makes   = sorted({r["make"] for r in all_rows if r.get("make")})
+all_models  = sorted({r["model"] for r in all_rows if r.get("model")})
+all_years   = [r["year"] for r in all_rows if r.get("year")]
+year_lo     = min(all_years) if all_years else 2017
+year_hi     = max(all_years) if all_years else 2025
+
 # ── sidebar filters ────────────────────────────────────────────────────────
 with st.sidebar:
     st.header("Filters")
-    source_filter = st.multiselect(
-        "Source",
-        ["cars24", "spinny", "olx", "teambhp", "9thgear", "carwale", "cardekho"],
-    )
-    make_filter = st.multiselect("Make", ["Audi", "Ford", "Jeep", "Skoda", "Volkswagen"])
-    model_filter = st.multiselect("Model", ["A3", "Q3", "Q5", "Q7", "Endeavour", "Compass", "Octavia", "Tiguan"])
-    year_min, year_max = st.slider("Year", 2017, 2025, (2017, 2025))
+    source_filter = st.multiselect("Source", all_sources)
+    make_filter   = st.multiselect("Make", all_makes)
+    model_filter  = st.multiselect("Model", all_models)
+    year_min, year_max = st.slider("Year", year_lo, year_hi, (year_lo, year_hi))
     price_max = st.number_input("Max Price (₹)", value=2_500_000, step=500_000, format="%d")
     kms_max   = st.number_input("Max KMs", value=150_000, step=10_000, format="%d")
     trans_filter = st.multiselect("Transmission", ["Automatic", "Manual"])
@@ -24,16 +39,8 @@ with st.sidebar:
         st.cache_data.clear()
         st.rerun()
 
-# ── load data ──────────────────────────────────────────────────────────────
-@st.cache_data(ttl=300)
-def load() -> list[dict]:
-    return db.fetch_active()
-
-rows = load()
-
 # ── apply filters ──────────────────────────────────────────────────────────
-def _sources(row: dict) -> list[str]:
-    return list((row.get("sources") or {}).keys())
+rows = all_rows
 
 if source_filter:
     rows = [r for r in rows if any(s in source_filter for s in _sources(r))]
