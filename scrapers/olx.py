@@ -1,33 +1,26 @@
 """
-OLX scraper — Bangalore, Karnataka.
+OLX scraper — Karnataka-wide, pre-filtered URL.
 OLX is JS-heavy; we use crawl4ai to render and then parse the HTML.
 Card structure (confirmed):
   Container: [data-aut-id="itemBox2"]
   Title:     [data-aut-id="itemTitle"]      → "Audi Q5"
   Price:     [data-aut-id="itemPrice"]      → "₹ 8,00,000"
-  Subtitle:  [data-aut-id="itemSubTitle"]   → "2013 - 200,000 km"
+  Subtitle:  [data-aut-id="itemSubTitle"]   → "2020 - 45,000 km"
   Link:      a[href]
   Image:     img[src]
 """
 from __future__ import annotations
 import asyncio
+import datetime
 import re
 from bs4 import BeautifulSoup
 from scrapers.base import CarListing
 from normalizer import parse_price, parse_kms
+from filters import MIN_YEAR, MAX_KMS, MAX_PRICE
 
 SOURCE = "olx"
 
-QUERIES = [
-    "used-Audi-diesel",
-    "used-Volkswagen-Tiguan-diesel",
-    "used-Skoda-Octavia-diesel",
-    "used-Jeep-Compass-diesel",
-]
-
-CITY_SLUG = "bangalore_g4058984"
-
-# Maps OLX title keywords → structured make/model
+# Maps OLX title keywords → structured make
 MAKE_MAP = {
     "audi": "Audi",
     "volkswagen": "Volkswagen", "vw": "Volkswagen",
@@ -36,8 +29,18 @@ MAKE_MAP = {
 }
 
 
-def _search_url(query: str) -> str:
-    return f"https://www.olx.in/{CITY_SLUG}/q-{query}"
+def _listing_url() -> str:
+    current_year = datetime.date.today().year
+    return (
+        "https://www.olx.in/en-in/karnataka_g2001159/cars_c84"
+        "?filter=make_eq_audi-1_and_jeep_and_skoda_and_volkswagen"
+        f"%2Cmileage_max_{MAX_KMS}"
+        "%2Cmodel_eq_audi-1-a3_and_audi-1-q3_and_audi-1-q5_and_audi-1-q7"
+        "_and_jeep-compass_and_skoda-kodiaq_and_skoda-octavia_and_volkswagen-tiguan"
+        "%2Cpetrol_eq_diesel"
+        f"%2Cprice_max_{MAX_PRICE}"
+        f"%2Cyear_between_{MIN_YEAR - 1}_to_{current_year}"
+    )
 
 
 def _parse_card(card) -> CarListing | None:
@@ -57,14 +60,13 @@ def _parse_card(card) -> CarListing | None:
 
         price = parse_price(raw_price) or 0
 
-        # Subtitle: "2013 - 200,000 km" or "2020 - 45000 km"
+        # Subtitle: "2020 - 45,000 km"
         year_m = re.search(r"\b(20\d{2})\b", subtitle)
         year   = int(year_m.group(1)) if year_m else 0
 
         km_m = re.search(r"([\d,]+)\s*km", subtitle, re.I)
         kms  = parse_kms(km_m.group(0)) if km_m else 0
 
-        # Parse make from title
         title_lower = raw_title.lower()
         make = ""
         for kw, m in MAKE_MAP.items():
@@ -74,7 +76,6 @@ def _parse_card(card) -> CarListing | None:
         if not make:
             return None
 
-        # Model is remaining words after make
         parts = raw_title.split()
         model   = parts[1] if len(parts) > 1 else ""
         variant = " ".join(parts[2:]) if len(parts) > 2 else ""
@@ -92,7 +93,7 @@ def _parse_card(card) -> CarListing | None:
         return CarListing(
             make=make, model=model, variant=variant, year=year,
             kms=kms, fuel="Diesel", transmission="",
-            color="", location="Bangalore",
+            color="", location="Karnataka",
             price=price, image_url=image_url,
             source_name=SOURCE, source_url=url,
         )
@@ -110,20 +111,20 @@ async def _fetch_rendered(url: str) -> str:
 
 
 def scrape() -> list[CarListing]:
-    results: list[CarListing] = []
-    for query in QUERIES:
-        url = _search_url(query)
-        try:
-            html = asyncio.run(_fetch_rendered(url))
-            soup = BeautifulSoup(html, "html.parser")
-            cards = soup.select('[data-aut-id="itemBox2"]')
-            if not cards:
-                print(f"[olx] no cards for: {query}")
-                continue
-            for card in cards:
-                listing = _parse_card(card)
-                if listing:
-                    results.append(listing)
-        except Exception as e:
-            print(f"[olx] error for '{query}': {e}")
-    return results
+    url = _listing_url()
+    try:
+        html = asyncio.run(_fetch_rendered(url))
+        soup = BeautifulSoup(html, "html.parser")
+        cards = soup.select('[data-aut-id="itemBox2"]')
+        if not cards:
+            print("[olx] no cards found")
+            return []
+        results = []
+        for card in cards:
+            listing = _parse_card(card)
+            if listing:
+                results.append(listing)
+        return results
+    except Exception as e:
+        print(f"[olx] error: {e}")
+        return []

@@ -7,7 +7,7 @@ TARGET: dict[str, list[str]] = {
     "jeep":       ["compass"],
 }
 
-MIN_YEAR   = 2019   # strictly > 2018
+MIN_YEAR   = 2017
 MAX_KMS    = 150_000
 MAX_PRICE  = 2_500_000
 FUEL       = "diesel"

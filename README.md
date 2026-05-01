@@ -2,7 +2,9 @@
 
 Personal used car alert system for Karnataka. Scrapes Cars24, Spinny, OLX, Carwale, Cardekho, TeamBHP, and 9thgear daily and surfaces matching listings in a Streamlit dashboard.
 
-**Target:** Diesel, Karnataka, 2019+, under 1.5 lakh km — Audi A3/Q3/Q5/Q7, VW Tiguan, Skoda Octavia, Jeep Compass
+**Target:** Diesel, Karnataka, 2017+, under 1.5 lakh km — Audi A3/Q3/Q5/Q7, VW Tiguan, Skoda Octavia, Jeep Compass
+
+**Live app:** [car-hunter.streamlit.io](https://car-hunter.streamlit.io)
 
 The scraper runs automatically every day at **10:00 AM IST** via GitHub Actions and pushes results to Supabase. The Streamlit UI reads from Supabase and lets you filter, sort, and dismiss listings.
 
@@ -123,7 +125,7 @@ streamlit run app.py         # UI at http://localhost:8501
 Defined in `filters.py`. Current criteria:
 
 - **Fuel:** Diesel only
-- **Year:** 2019 or newer
+- **Year:** 2017 or newer
 - **Odometer:** under 1,50,000 km
 - **Makes/models:**
   - Audi — A3, Q3, Q5, Q7
