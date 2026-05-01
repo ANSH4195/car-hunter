@@ -11,16 +11,15 @@ load_dotenv()
 
 from filters import is_valid
 import db
-from scrapers import cars24, spinny, olx, teambhp, nthgear, carwale, cardekho
+from scrapers import cars24, spinny, olx, teambhp, nthgear, carwale
 
 SCRAPERS = [
-    ("cars24",   cars24.scrape),
-    ("spinny",   spinny.scrape),
-    ("olx",      olx.scrape),
-    ("teambhp",  teambhp.scrape),
-    ("9thgear",  nthgear.scrape),
-    ("carwale",  carwale.scrape),
-    ("cardekho", cardekho.scrape),
+    ("cars24",  cars24.scrape),
+    ("spinny",  spinny.scrape),
+    ("olx",     olx.scrape),
+    ("teambhp", teambhp.scrape),
+    ("9thgear", nthgear.scrape),
+    ("carwale", carwale.scrape),
 ]
 
 
