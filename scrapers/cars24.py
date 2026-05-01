@@ -1,100 +1,168 @@
 """
-Cars24 scraper — Karnataka, Diesel, target makes.
-Data lives in __NEXT_DATA__ JSON embedded in the page HTML.
+Cars24 scraper — Bangalore, diesel, target makes.
+Cars24 uses Next.js App Router (RSC); car data is client-side rendered.
+We use crawl4ai to render, then parse card DOM.
+Card structure (confirmed):
+  Wrapper:     a[class*="carCardWrapper"][href]   → full listing URL
+  Image:       img.shrinkOnTouch[src, alt]        → alt = "2018 Skoda Kodiaq - SUV - Diesel - Automatic - ₹18.33 lakh"
+  KMs:         card text regex for "X,XX,XXX km"
+  Variant:     card text, item between model name and km string
+  Location:    last item in card text
+Filter URL uses Cars24's f= syntax:
+  make:=:audi   → exact make match (blanket — all models)
+  ;model:in:m1  → restrict previous make to these models
 """
 from __future__ import annotations
-import json
+import asyncio
+import datetime
 import re
-import httpx
+from bs4 import BeautifulSoup
 from scrapers.base import CarListing
+from normalizer import parse_price, parse_kms
+from filters import MIN_YEAR, MAX_PRICE
 
 SOURCE = "cars24"
-MAKES  = ["Audi", "BMW", "Mercedes-Benz", "Volkswagen", "Skoda", "Jeep", "Ford", "Volvo"]
+BASE   = "https://www.cars24.com"
 
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
-    "Accept-Language": "en-IN,en;q=0.9",
+MAKE_NORM = {
+    "audi": "Audi", "bmw": "BMW",
+    "mercedes": "Mercedes-Benz", "mercedes benz": "Mercedes-Benz", "mercedes-benz": "Mercedes-Benz",
+    "volkswagen": "Volkswagen", "vw": "Volkswagen",
+    "skoda": "Skoda", "jeep": "Jeep", "ford": "Ford", "volvo": "Volvo",
 }
 
-# Karnataka city slugs on Cars24
-CITIES = ["bangalore", "mysore", "mangalore", "hubli"]
+
+def _listing_url() -> str:
+    current_year = datetime.date.today().year
+    # Cars24 filter: blanket makes first, then ;model:in: for restricted ones.
+    # Encoding: %3A = :, %3B = ;, %2C = ,, + = space in make names
+    make_f = (
+        "make%3A%3D%3Aaudi"
+        "%3AOR%3Amake%3A%3D%3Abmw"
+        "%3AOR%3Amake%3A%3D%3Amercedes+benz"
+        "%3AOR%3Amake%3A%3D%3Avolvo"
+        "%3AOR%3Amake%3A%3D%3Ajeep%3Bmodel%3Ain%3Acompass"
+        "%3AOR%3Amake%3A%3D%3Avolkswagen%3Bmodel%3Ain%3Atiguan"
+        "%3AOR%3Amake%3A%3D%3Aford%3Bmodel%3Ain%3Aendeavour"
+        "%3AOR%3Amake%3A%3D%3Askoda%3Bmodel%3Ain%3Akodiaq%2Coctavia"
+    )
+    return (
+        f"{BASE}/buy-used-diesel-cars-bangalore/?"
+        f"f=listingPrice%3Abw%3A50000%2C{MAX_PRICE}"
+        f"&f={make_f}"
+        f"&f=year%3Abw%3A{MIN_YEAR}%2C{current_year}"
+        f"&f=odometer%3Abw%3A0%2C1000000"
+        f"&sort=bestmatch&storeCityId=4709"
+    )
 
 
-def _search_url(city: str, make: str) -> str:
-    return f"https://www.cars24.com/buy-used-{make.lower()}-cars-{city}/?f=fuel%3ADiesel&sort=bestmatch"
-
-
-def _parse_next_data(html: str) -> list[dict]:
-    m = re.search(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', html, re.DOTALL)
-    if not m:
-        return []
+def _parse_card(card) -> CarListing | None:
     try:
-        data = json.loads(m.group(1))
-        # Path: props.pageProps.carList or searchResult.cars
-        page = data.get("props", {}).get("pageProps", {})
-        cars = (
-            page.get("carList")
-            or page.get("searchResult", {}).get("content")
-            or []
-        )
-        return cars if isinstance(cars, list) else []
-    except Exception as e:
-        print(f"[cars24] JSON parse error: {e}")
-        return []
+        # URL
+        href = card.get("href", "")
+        url  = href if href.startswith("http") else f"{BASE}{href}"
 
+        # Image + rich alt text: "2018 Skoda Kodiaq - SUV - Diesel - Automatic - ₹18.33 lakh"
+        img_el    = card.select_one("img.shrinkOnTouch") or card.select_one("img")
+        img_src   = ""
+        alt_text  = ""
+        if img_el:
+            img_src  = img_el.get("src") or ""
+            alt_text = img_el.get("alt") or ""
 
-def _to_listing(raw: dict, city: str) -> CarListing | None:
-    try:
-        car_id  = raw.get("id") or raw.get("carId", "")
-        make    = raw.get("make", "")
-        model   = raw.get("model", "")
-        variant = raw.get("variant") or raw.get("variantDisplayName", "")
-        year    = int(raw.get("makeYear") or raw.get("year") or 0)
-        kms     = int(raw.get("km") or raw.get("kilometer") or raw.get("odometerReading") or 0)
-        price   = int(raw.get("price") or raw.get("carPrice") or 0)
-        fuel    = raw.get("fuelType", "")
-        trans   = raw.get("transmission", "")
-        color   = raw.get("color") or raw.get("carColor") or ""
-        location = raw.get("city") or city.title()
+        # Parse year, make, model from alt or card text
+        card_text = card.get_text(separator=" | ", strip=True)
 
-        # Image: prefer first item in images array
-        images = raw.get("images") or raw.get("carImages") or []
-        image_url = images[0] if isinstance(images, list) and images else ""
-        if isinstance(image_url, dict):
-            image_url = image_url.get("url") or image_url.get("imageUrl") or ""
+        # Year: first 4-digit number in card text
+        year_m = re.search(r"\b(20\d{2})\b", card_text)
+        year   = int(year_m.group(1)) if year_m else 0
 
-        url = f"https://www.cars24.com/buy-used-{make.lower()}-{model.lower()}-cars/{car_id}/"
+        # Make + model: "2018 Skoda Kodiaq" → make="Skoda", model="Kodiaq"
+        make_model_m = re.search(r"\b20\d{2}\s+(\w[\w-]*(?:\s+\w[\w-]*)?)\b", card_text)
+        make  = ""
+        model = ""
+        if make_model_m:
+            parts = make_model_m.group(1).split()
+            make_raw = parts[0].lower()
+            make  = MAKE_NORM.get(make_raw, parts[0].title())
+            model = parts[1] if len(parts) > 1 else ""
+
+        # Variant: from card text between model name and km line
+        # e.g. "2018 Skoda Kodiaq | STYLE 2.0 TDI 4X4 AT | 1,14,645 km"
+        variant = ""
+        items = [p.strip() for p in card_text.split("|")]
+        for i, item in enumerate(items):
+            if re.search(r"\b20\d{2}\b", item) and i + 1 < len(items):
+                candidate = items[i + 1].strip()
+                if not re.search(r"km|diesel|auto|manual|petrol|₹|emi", candidate, re.I):
+                    variant = candidate
+
+        # KMs: "1,14,645 km" or "50,000 km"
+        km_m = re.search(r"([\d,]+)\s*km", card_text, re.I)
+        kms  = parse_kms(km_m.group(0)) if km_m else 0
+
+        # Fuel + transmission from alt text or card text
+        fuel  = "Diesel"
+        trans = ""
+        if "automatic" in (alt_text + card_text).lower() or " auto" in card_text.lower():
+            trans = "Automatic"
+        elif "manual" in (alt_text + card_text).lower():
+            trans = "Manual"
+
+        # Price: prefer "₹XX.XX lakh" (actual price, not EMI/MRP)
+        price_m = re.search(r"₹\s*([\d.]+)\s*lakh", card_text, re.I)
+        if price_m:
+            price = int(float(price_m.group(1)) * 100_000)
+        else:
+            price_m2 = re.search(r"₹\s*([\d.]+)L\b", card_text)
+            price = int(float(price_m2.group(1)) * 100_000) if price_m2 else 0
+
+        # Location: last non-junk item in card text
+        location = "Bangalore"
+        for item in reversed(items):
+            item = item.strip()
+            if item and not re.search(r"₹|EMI|charges|stock|owned|wishlist|verified", item, re.I):
+                if len(item) > 4:
+                    location = item
+                    break
 
         if not all([make, model, year, price]):
             return None
 
         return CarListing(
             make=make, model=model, variant=variant, year=year,
-            kms=kms, fuel=fuel, transmission=trans, color=color,
-            location=location, price=price, image_url=image_url,
+            kms=kms, fuel=fuel, transmission=trans, color="",
+            location=location, price=price, image_url=img_src,
             source_name=SOURCE, source_url=url,
         )
     except Exception as e:
-        print(f"[cars24] listing parse error: {e}")
+        print(f"[cars24] card parse error: {e}")
         return None
 
 
+async def _fetch_rendered(url: str) -> str:
+    from crawl4ai import AsyncWebCrawler, CrawlerRunConfig
+    config = CrawlerRunConfig(page_timeout=40000, delay_before_return_html=5.0)
+    async with AsyncWebCrawler() as crawler:
+        result = await crawler.arun(url=url, config=config)
+        return result.html or ""
+
+
 def scrape() -> list[CarListing]:
-    results: list[CarListing] = []
-    with httpx.Client(headers=HEADERS, timeout=30, follow_redirects=True) as client:
-        for city in CITIES:
-            for make in MAKES:
-                url = _search_url(city, make)
-                try:
-                    resp = client.get(url)
-                    if resp.status_code != 200:
-                        print(f"[cars24] {url} → {resp.status_code}")
-                        continue
-                    raw_cars = _parse_next_data(resp.text)
-                    for raw in raw_cars:
-                        listing = _to_listing(raw, city)
-                        if listing:
-                            results.append(listing)
-                except Exception as e:
-                    print(f"[cars24] error fetching {url}: {e}")
-    return results
+    url = _listing_url()
+    try:
+        html  = asyncio.run(_fetch_rendered(url))
+        soup  = BeautifulSoup(html, "html.parser")
+        cards = soup.select('[class*="carCardWrapper"]')
+        if not cards:
+            print("[cars24] no cards found")
+            return []
+        results = []
+        for card in cards:
+            listing = _parse_card(card)
+            if listing:
+                results.append(listing)
+        return results
+    except Exception as e:
+        print(f"[cars24] error: {e}")
+        return []
