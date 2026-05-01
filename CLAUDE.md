@@ -4,7 +4,7 @@ Personal used car alert system for Karnataka, India. Scrapes 7 Indian used car m
 
 ## What it does
 - Scrapes Cars24, Spinny, OLX, Carwale, Cardekho, TeamBHP, 9thgear daily via GitHub Actions (10 AM IST)
-- Targets: Audi (A3/Q3/Q5/Q7), Volkswagen (Tiguan), Skoda (Octavia), Jeep (Compass) — diesel, 2017+, <150k km, Karnataka cities
+- Targets: Audi (A3/Q3/Q5/Q7), Volkswagen (Tiguan), Skoda (Octavia), Jeep (Compass), Ford (Endeavour) — diesel, 2017+, <150k km, Karnataka cities
 - Deduplicates via SHA256 hash of make+model+variant+year+color+transmission+kms_bucket(±5k)
 - Stores in Supabase (Postgres); shows in Streamlit with soft-delete
 

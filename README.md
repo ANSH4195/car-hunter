@@ -2,7 +2,7 @@
 
 Personal used car alert system for Karnataka. Scrapes Cars24, Spinny, OLX, Carwale, Cardekho, TeamBHP, and 9thgear daily and surfaces matching listings in a Streamlit dashboard.
 
-**Target:** Diesel, Karnataka, 2017+, under 1.5 lakh km — Audi A3/Q3/Q5/Q7, VW Tiguan, Skoda Octavia, Jeep Compass
+**Target:** Diesel, Karnataka, 2017+, under 1.5 lakh km — Audi A3/Q3/Q5/Q7, VW Tiguan, Skoda Octavia, Jeep Compass, Ford Endeavour
 
 **Live app:** [car-hunter.streamlit.io](https://car-hunter.streamlit.io)
 
@@ -132,6 +132,7 @@ Defined in `filters.py`. Current criteria:
   - Volkswagen — Tiguan
   - Skoda — Octavia
   - Jeep — Compass *(pre-2022 must be Limited Plus variant)*
+  - Ford — Endeavour
 
 To change these, edit the constants at the top of `filters.py`.
 

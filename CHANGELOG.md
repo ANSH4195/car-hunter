@@ -1,6 +1,9 @@
 # Changelog
 
 ## 2026-05-01
+- Added Ford Endeavour as a target model across all 7 scrapers and filters
+
+
 - Fixed OLX scraper: replaced 4 keyword search queries with a single pre-filtered Karnataka-wide URL, yielding actual target listings instead of zero results
 - OLX mileage cap and year range now dynamically driven by `filters.py` constants
 - Relaxed `MIN_YEAR` filter from 2019 → 2017 so older qualifying listings are stored (UI can still filter to 2019+)

@@ -21,7 +21,7 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
 }
 
-TARGET_MAKES = {"audi", "volkswagen", "vw", "skoda", "jeep"}
+TARGET_MAKES = {"audi", "volkswagen", "vw", "skoda", "jeep", "ford"}
 
 
 def _search_url(page: int = 1) -> str:

@@ -5,6 +5,7 @@ TARGET: dict[str, list[str]] = {
     "volkswagen": ["tiguan"],
     "skoda":      ["octavia"],
     "jeep":       ["compass"],
+    "ford":       ["endeavour"],
 }
 
 MIN_YEAR   = 2017

@@ -20,7 +20,7 @@ HEADERS = {
 }
 
 CITIES = ["bangalore", "mysore", "mangalore", "hubli"]
-MAKES  = ["audi", "volkswagen", "skoda", "jeep"]
+MAKES  = ["audi", "volkswagen", "skoda", "jeep", "ford"]
 
 
 def _search_url(city: str, make: str) -> str:
