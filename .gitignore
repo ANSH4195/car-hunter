@@ -3,3 +3,7 @@
 __pycache__/
 *.pyc
 .venv/
+.claude/
+.studies/
+.graphifyignore
+graphify-out/
