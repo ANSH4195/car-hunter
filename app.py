@@ -93,8 +93,8 @@ st.markdown("""
   display:flex;align-items:center;gap:5px;
 }
 .car-row1 img.brand-logo {
-  height:13px;width:auto;vertical-align:middle;
-  filter:brightness(0) invert(1);
+  height:18px;width:auto;vertical-align:middle;
+  object-fit:contain;
 }
 .car-row2 {
   font-size:12px;color:#888;margin-top:2px;
@@ -212,11 +212,11 @@ def fmt_price(price: int) -> str:
 def fmt_kms(kms: int) -> str:
     return f"{kms // 1000}k km" if kms >= 1000 else f"{kms} km"
 
-BRAND_LOGO_SLUGS = {
+BRAND_LOGO_FILES = {
     "audi": "audi",
     "bmw": "bmw",
-    "mercedes-benz": "mercedes",
-    "mercedes": "mercedes",
+    "mercedes-benz": "mercedes-benz",
+    "mercedes": "mercedes-benz",
     "volvo": "volvo",
     "volkswagen": "volkswagen",
     "vw": "volkswagen",
@@ -227,11 +227,11 @@ BRAND_LOGO_SLUGS = {
 }
 
 def brand_logo_html(make: str) -> str:
-    slug = BRAND_LOGO_SLUGS.get(make.strip().lower())
+    slug = BRAND_LOGO_FILES.get(make.strip().lower())
     if not slug:
         return make
     return (
-        f'<img class="brand-logo" src="https://cdn.simpleicons.org/{slug}" '
+        f'<img class="brand-logo" src="app/static/logos/{slug}.png" '
         f'alt="{make}" title="{make}" />'
     )
 
