@@ -7,13 +7,27 @@ st.set_page_config(page_title="Car Hunter", layout="centered", initial_sidebar_s
 
 st.title("Car Hunter")
 
+# ── handle action links (?action=hide|del&id=...) ──────────────────────────
+qp = st.query_params
+_action = qp.get("action")
+_lid    = qp.get("id")
+if _action and _lid:
+    if _action == "hide":
+        db.soft_delete(_lid)
+    elif _action == "del":
+        db.hard_delete(_lid)
+    st.query_params.clear()
+    st.cache_data.clear()
+    st.rerun()
+
 # ── JS injected into parent via zero-height iframe ─────────────────────────
 # st.markdown strips <script> and onclick — components.html iframe can reach
 # window.parent since Streamlit serves both on the same origin.
 components.html("""
 <script>
 (function() {
-  var p = window.parent.document;
+  var p  = window.parent.document;
+  var pw = window.parent;
 
   // ── fullscreen image modal ──────────────────────────────────────────────
   if (!p.getElementById('img-modal')) {
@@ -36,6 +50,22 @@ components.html("""
       p.getElementById('img-modal').style.display = 'flex';
     }
   }, true);
+
+  // ── scroll restore across action-link reruns ──────────────────────────
+  // Save scrollY before an action link navigates; restore on next load.
+  p.addEventListener('click', function(e) {
+    var a = e.target.closest && e.target.closest('a.action-link');
+    if (a) {
+      try { pw.sessionStorage.setItem('car-hunter-scroll', String(pw.scrollY)); } catch (_) {}
+    }
+  }, true);
+  try {
+    var saved = pw.sessionStorage.getItem('car-hunter-scroll');
+    if (saved !== null) {
+      pw.sessionStorage.removeItem('car-hunter-scroll');
+      pw.scrollTo(0, parseInt(saved, 10) || 0);
+    }
+  } catch (_) {}
 })();
 </script>
 """, height=0)
@@ -67,26 +97,37 @@ st.markdown("""
 }
 .car-row3 { font-size:13px;font-weight:700;margin-top:3px; }
 
-.src-icons { display:flex;flex-direction:column;align-items:center;gap:5px;margin-bottom:4px; }
-.src-icon img { width:22px;height:22px;object-fit:contain; }
-.src-divider { width:100%;border-top:1px solid #333;margin-bottom:4px; }
+/* right column inside .car-card — favicons → divider → ⋯ menu */
+.right-col {
+  display:flex;flex-direction:column;align-items:center;gap:6px;
+  padding-left:10px;border-left:1px solid #333;align-self:stretch;
+  justify-content:center;flex-shrink:0;
+}
+.src-icons { display:flex;flex-direction:column;align-items:center;gap:5px; }
+.src-icon img { width:22px;height:22px;object-fit:contain;display:block; }
+.src-divider { width:24px;border-top:1px solid #333; }
 
-/* right column: border + centre everything */
-div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:last-child {
-  border-left:1px solid #333 !important;
-  display:flex !important;flex-direction:column !important;
-  align-items:center !important;gap:0 !important;
-  padding-left:10px !important;
+/* ⋯ menu via <details>/<summary> — no JS needed */
+details.actions-menu { position:relative; }
+details.actions-menu > summary {
+  list-style:none;cursor:pointer;color:#777;font-size:18px;line-height:1;
+  padding:2px 6px;user-select:none;
 }
-/* bare ⋯ button — no border, no bg, no chevron */
-div[data-testid="stPopover"] > button {
-  background:none !important;border:none !important;box-shadow:none !important;
-  color:#777 !important;font-size:18px !important;
-  padding:0 !important;min-height:0 !important;line-height:1 !important;
-  width:auto !important;
+details.actions-menu > summary::-webkit-details-marker { display:none; }
+details.actions-menu > summary::marker { content:""; }
+details.actions-menu > summary:hover { color:#ccc; }
+details.actions-menu[open] > summary { color:#ccc; }
+.actions-pop {
+  position:absolute;right:0;top:100%;z-index:10;
+  background:#1a1a1a;border:1px solid #333;border-radius:6px;
+  min-width:140px;padding:4px 0;box-shadow:0 4px 12px rgba(0,0,0,0.5);
+  margin-top:4px;
 }
-div[data-testid="stPopover"] > button:hover { color:#ccc !important; }
-div[data-testid="stPopover"] > button svg { display:none !important; }
+.actions-pop a.action-link {
+  display:block;padding:6px 12px;color:#ddd;text-decoration:none;
+  font-size:13px;white-space:nowrap;
+}
+.actions-pop a.action-link:hover { background:#2a2a2a;color:#fff; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -212,9 +253,7 @@ for row in rows:
                 f'style="font-size:10px;color:#aaa">{src}</a>'
             )
 
-    col_card, col_menu = st.columns([10, 1], gap="small")
-    with col_card:
-        st.markdown(f"""
+    st.markdown(f"""
 <div class="car-card">
   {img_html}
   <div class="car-info">
@@ -222,19 +261,19 @@ for row in rows:
     <div class="car-row2">{row2}</div>
     <div class="car-row3">{price}</div>
   </div>
+  <div class="right-col">
+    <div class="src-icons">{src_icons_html}</div>
+    <div class="src-divider"></div>
+    <details class="actions-menu">
+      <summary>⋯</summary>
+      <div class="actions-pop">
+        <a class="action-link" href="?action=hide&id={lid}">Not interested</a>
+        <a class="action-link" href="?action=del&id={lid}">Delete</a>
+      </div>
+    </details>
+  </div>
 </div>
 """, unsafe_allow_html=True)
-    with col_menu:
-        st.markdown(f'<div class="src-icons">{src_icons_html}</div><div class="src-divider"></div>', unsafe_allow_html=True)
-        with st.popover("⋯"):
-            if st.button("Not interested", key=f"hide_{lid}", use_container_width=True):
-                db.soft_delete(lid)
-                st.cache_data.clear()
-                st.rerun()
-            if st.button("Delete", key=f"del_{lid}", use_container_width=True):
-                db.hard_delete(lid)
-                st.cache_data.clear()
-                st.rerun()
 
 if not rows:
     st.info("No listings match your filters.")
