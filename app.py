@@ -67,25 +67,25 @@ st.markdown("""
 }
 .car-row3 { font-size:13px;font-weight:700;margin-top:3px; }
 
-/* Source icons right column */
-.car-right {
-  border-left:1px solid #333;padding-left:10px;
-  display:flex;flex-direction:column;align-items:center;
-  gap:5px;flex-shrink:0;
-}
+.src-icons { display:flex;flex-direction:column;align-items:center;gap:5px; }
 .src-icon img { width:22px;height:22px;object-fit:contain; }
 
-/* ⋯ popover column */
+/* right column: border + centre everything */
 div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:last-child {
   border-left:1px solid #333 !important;
+  display:flex !important;flex-direction:column !important;
+  align-items:center !important;gap:6px !important;
   padding-left:10px !important;
 }
+/* bare ⋯ button — no border, no bg, no chevron */
 div[data-testid="stPopover"] > button {
   background:none !important;border:none !important;box-shadow:none !important;
-  color:#888 !important;font-size:18px !important;padding:0 !important;
-  min-height:0 !important;line-height:1 !important;
+  color:#777 !important;font-size:18px !important;
+  padding:0 !important;min-height:0 !important;line-height:1 !important;
+  width:auto !important;
 }
 div[data-testid="stPopover"] > button:hover { color:#ccc !important; }
+div[data-testid="stPopover"] > button svg { display:none !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -221,10 +221,10 @@ for row in rows:
     <div class="car-row2">{row2}</div>
     <div class="car-row3">{price}</div>
   </div>
-  <div class="car-right">{src_icons_html}</div>
 </div>
 """, unsafe_allow_html=True)
     with col_menu:
+        st.markdown(f'<div class="src-icons">{src_icons_html}</div>', unsafe_allow_html=True)
         with st.popover("⋯"):
             if st.button("Not interested", key=f"hide_{lid}", use_container_width=True):
                 db.soft_delete(lid)
