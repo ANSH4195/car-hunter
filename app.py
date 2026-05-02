@@ -4,6 +4,20 @@ from datetime import datetime
 import db
 
 st.set_page_config(page_title="Car Hunter", layout="centered", initial_sidebar_state="collapsed")
+
+# ── handle card actions via query params ───────────────────────────────────
+_p = st.query_params
+if "action" in _p:
+    _lid = _p.get("id")
+    if _lid:
+        if _p["action"] == "hide":
+            db.soft_delete(_lid)
+        elif _p["action"] == "delete":
+            db.hard_delete(_lid)
+    st.query_params.clear()
+    st.cache_data.clear()
+    st.rerun()
+
 st.title("Car Hunter")
 
 # ── modal JS injected via components iframe (st.markdown strips scripts) ───
@@ -57,14 +71,36 @@ st.markdown("""
   font-size:12px;color:#888;margin-top:2px;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 }
-.car-price {
-  font-size:17px;font-weight:700;white-space:nowrap;flex-shrink:0;
+.car-row3 {
+  font-size:13px;font-weight:700;margin-top:3px;
 }
-.car-sources {
+.car-right {
   border-left:1px solid #333;padding-left:10px;
-  display:flex;flex-direction:column;gap:6px;flex-shrink:0;
+  display:flex;flex-direction:column;align-items:center;
+  gap:0;flex-shrink:0;
+}
+.src-icons {
+  display:flex;flex-direction:column;align-items:center;gap:5px;
+  padding-bottom:6px;
 }
 .src-icon img { width:22px;height:22px;object-fit:contain; }
+.src-divider { width:100%;border-top:1px solid #333;margin-bottom:4px; }
+.action-menu { position:relative; }
+.action-menu summary {
+  list-style:none;cursor:pointer;
+  font-size:16px;color:#888;padding:2px 4px;user-select:none;
+}
+.action-menu summary::-webkit-details-marker { display:none; }
+.action-dropdown {
+  position:absolute;right:0;top:100%;
+  background:#1e1e1e;border:1px solid #444;border-radius:6px;
+  min-width:130px;z-index:200;overflow:hidden;white-space:nowrap;
+}
+.action-dropdown a {
+  display:block;padding:8px 12px;
+  color:#ccc;text-decoration:none;font-size:12px;
+}
+.action-dropdown a:hover { background:#2a2a2a; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -142,9 +178,7 @@ def fmt_price(price: int) -> str:
     return f"₹{lakhs:.1f}L" if lakhs % 1 else f"₹{int(lakhs)}L"
 
 def fmt_kms(kms: int) -> str:
-    if kms >= 1000:
-        return f"{kms // 1000}k km"
-    return f"{kms} km"
+    return f"{kms // 1000}k km" if kms >= 1000 else f"{kms} km"
 
 def trans_abbr(t: str) -> str:
     if not t:
@@ -164,25 +198,27 @@ for row in rows:
     variant = row.get("variant") or ""
     kms     = fmt_kms(row["kms"]) if row.get("kms") else ""
     price   = fmt_price(row["price"]) if row.get("price") else "—"
+    lid     = row["id"]
     sources: dict = row.get("sources") or {}
 
     row1 = f"{year} {make} {model}" + (f" · {trans}" if trans else "")
     row2_parts = [p for p in [variant, kms] if p]
     row2 = " · ".join(row2_parts)
 
-    if img:
-        img_html = f'<img class="car-thumb" src="{img}" />'
-    else:
-        img_html = '<div class="car-thumb-placeholder">No image</div>'
+    img_html = (
+        f'<img class="car-thumb" src="{img}" />'
+        if img else
+        '<div class="car-thumb-placeholder">No image</div>'
+    )
 
-    sources_html = ""
+    src_icons_html = ""
     for src, info in sources.items():
         url     = info.get("url", "#")
         favicon = SOURCE_FAVICONS.get(src, "")
         if favicon:
-            sources_html += f'<a class="src-icon" href="{url}" target="_blank"><img src="{favicon}" title="{src}" /></a>'
+            src_icons_html += f'<a class="src-icon" href="{url}" target="_blank"><img src="{favicon}" title="{src}" /></a>'
         else:
-            sources_html += f'<a href="{url}" target="_blank" style="font-size:10px;color:#aaa">{src}</a>'
+            src_icons_html += f'<a href="{url}" target="_blank" style="font-size:10px;color:#aaa">{src}</a>'
 
     st.markdown(f"""
 <div class="car-card">
@@ -190,23 +226,21 @@ for row in rows:
   <div class="car-info">
     <div class="car-row1">{row1}</div>
     <div class="car-row2">{row2}</div>
+    <div class="car-row3">{price}</div>
   </div>
-  <div class="car-price">{price}</div>
-  <div class="car-sources">{sources_html}</div>
+  <div class="car-right">
+    <div class="src-icons">{src_icons_html}</div>
+    <div class="src-divider"></div>
+    <details class="action-menu">
+      <summary>&#8943;</summary>
+      <div class="action-dropdown">
+        <a href="?action=hide&id={lid}">Not interested</a>
+        <a href="?action=delete&id={lid}">Delete</a>
+      </div>
+    </details>
+  </div>
 </div>
 """, unsafe_allow_html=True)
-
-    col_hide, col_del = st.columns([1, 1])
-    with col_hide:
-        if st.button("Not interested", key=f"hide_{row['id']}", use_container_width=True):
-            db.soft_delete(row["id"])
-            st.cache_data.clear()
-            st.rerun()
-    with col_del:
-        if st.button("Delete", key=f"del_{row['id']}", use_container_width=True):
-            db.hard_delete(row["id"])
-            st.cache_data.clear()
-            st.rerun()
 
 if not rows:
     st.info("No listings match your filters.")
