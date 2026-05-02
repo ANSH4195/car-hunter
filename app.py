@@ -222,7 +222,6 @@ BRAND_LOGO_FILES = {
     "vw": "volkswagen",
     "skoda": "skoda",
     "škoda": "skoda",
-    "jeep": "jeep",
     "ford": "ford",
 }
 
