@@ -90,6 +90,11 @@ st.markdown("""
 .car-row1 {
   font-size:13px;font-weight:600;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  display:flex;align-items:center;gap:5px;
+}
+.car-row1 img.brand-logo {
+  height:13px;width:auto;vertical-align:middle;
+  filter:brightness(0) invert(1);
 }
 .car-row2 {
   font-size:12px;color:#888;margin-top:2px;
@@ -207,6 +212,29 @@ def fmt_price(price: int) -> str:
 def fmt_kms(kms: int) -> str:
     return f"{kms // 1000}k km" if kms >= 1000 else f"{kms} km"
 
+BRAND_LOGO_SLUGS = {
+    "audi": "audi",
+    "bmw": "bmw",
+    "mercedes-benz": "mercedes",
+    "mercedes": "mercedes",
+    "volvo": "volvo",
+    "volkswagen": "volkswagen",
+    "vw": "volkswagen",
+    "skoda": "skoda",
+    "škoda": "skoda",
+    "jeep": "jeep",
+    "ford": "ford",
+}
+
+def brand_logo_html(make: str) -> str:
+    slug = BRAND_LOGO_SLUGS.get(make.strip().lower())
+    if not slug:
+        return make
+    return (
+        f'<img class="brand-logo" src="https://cdn.simpleicons.org/{slug}" '
+        f'alt="{make}" title="{make}" />'
+    )
+
 def trans_abbr(t: str) -> str:
     if not t:
         return ""
@@ -228,7 +256,8 @@ for row in rows:
     price   = fmt_price(row["price"]) if row.get("price") else "—"
     sources: dict = row.get("sources") or {}
 
-    row1 = f"{year} {make} {model}" + (f" · {trans}" if trans else "")
+    make_html = brand_logo_html(make) if make else ""
+    row1 = f"{year} {make_html} {model}" + (f" · {trans}" if trans else "")
     row2_parts = [p for p in [variant, kms] if p]
     row2 = " · ".join(row2_parts)
 
