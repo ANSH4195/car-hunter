@@ -1,20 +1,40 @@
 import streamlit as st
+import streamlit.components.v1 as components
 from datetime import datetime
 import db
 
 st.set_page_config(page_title="Car Hunter", layout="centered", initial_sidebar_state="collapsed")
 st.title("Car Hunter")
 
-# ── modal + global styles ──────────────────────────────────────────────────
+# ── modal JS injected via components iframe (st.markdown strips scripts) ───
+components.html("""
+<script>
+(function() {
+  var p = window.parent.document;
+  if (p.getElementById('img-modal')) return;
+  var modal = p.createElement('div');
+  modal.id = 'img-modal';
+  modal.style.cssText = 'display:none;position:fixed;top:0;left:0;width:100%;height:100%;' +
+    'background:rgba(0,0,0,0.93);z-index:9999;align-items:center;justify-content:center;cursor:pointer;';
+  var img = p.createElement('img');
+  img.id = 'modal-img';
+  img.style.cssText = 'max-width:95vw;max-height:90vh;object-fit:contain;border-radius:8px;';
+  modal.appendChild(img);
+  modal.addEventListener('click', function() { modal.style.display = 'none'; });
+  p.body.appendChild(modal);
+  p.addEventListener('click', function(e) {
+    if (e.target && e.target.classList.contains('car-thumb')) {
+      img.src = e.target.src;
+      modal.style.display = 'flex';
+    }
+  }, true);
+})();
+</script>
+""", height=0)
+
+# ── card styles ────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-#img-modal {
-  display:none;position:fixed;top:0;left:0;width:100%;height:100%;
-  background:rgba(0,0,0,0.93);z-index:9999;
-  align-items:center;justify-content:center;cursor:pointer;
-}
-#img-modal.open { display:flex; }
-#img-modal img { max-width:95vw;max-height:90vh;object-fit:contain;border-radius:8px; }
 .car-card {
   display:flex;align-items:center;gap:10px;
   padding:10px 4px;border-bottom:1px solid #2a2a2a;
@@ -46,15 +66,6 @@ st.markdown("""
 }
 .src-icon img { width:22px;height:22px;object-fit:contain; }
 </style>
-<div id="img-modal" onclick="this.classList.remove('open')">
-  <img id="modal-img" src="" />
-</div>
-<script>
-function showModal(src) {
-  document.getElementById('modal-img').src = src;
-  document.getElementById('img-modal').classList.add('open');
-}
-</script>
 """, unsafe_allow_html=True)
 
 # ── load data ──────────────────────────────────────────────────────────────
@@ -160,7 +171,7 @@ for row in rows:
     row2 = " · ".join(row2_parts)
 
     if img:
-        img_html = f'<img class="car-thumb" src="{img}" onclick="showModal(\'{img}\')" />'
+        img_html = f'<img class="car-thumb" src="{img}" />'
     else:
         img_html = '<div class="car-thumb-placeholder">No image</div>'
 
