@@ -2,8 +2,60 @@ import streamlit as st
 from datetime import datetime
 import db
 
-st.set_page_config(page_title="Car Hunter", layout="wide")
-st.title("🔍 Car Hunter — Karnataka Used Cars")
+st.set_page_config(page_title="Car Hunter", layout="centered", initial_sidebar_state="collapsed")
+st.title("Car Hunter")
+
+# ── modal + global styles ──────────────────────────────────────────────────
+st.markdown("""
+<style>
+#img-modal {
+  display:none;position:fixed;top:0;left:0;width:100%;height:100%;
+  background:rgba(0,0,0,0.93);z-index:9999;
+  align-items:center;justify-content:center;cursor:pointer;
+}
+#img-modal.open { display:flex; }
+#img-modal img { max-width:95vw;max-height:90vh;object-fit:contain;border-radius:8px; }
+.car-card {
+  display:flex;align-items:center;gap:10px;
+  padding:10px 4px;border-bottom:1px solid #2a2a2a;
+}
+.car-thumb {
+  width:88px;height:64px;object-fit:cover;border-radius:6px;
+  cursor:pointer;flex-shrink:0;
+}
+.car-thumb-placeholder {
+  width:88px;height:64px;border-radius:6px;flex-shrink:0;
+  background:#222;display:flex;align-items:center;justify-content:center;
+  color:#555;font-size:10px;
+}
+.car-info { flex:1;min-width:0; }
+.car-row1 {
+  font-size:13px;font-weight:600;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.car-row2 {
+  font-size:12px;color:#888;margin-top:2px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.car-price {
+  font-size:17px;font-weight:700;white-space:nowrap;flex-shrink:0;
+}
+.car-sources {
+  border-left:1px solid #333;padding-left:10px;
+  display:flex;flex-direction:column;gap:6px;flex-shrink:0;
+}
+.src-icon img { width:22px;height:22px;object-fit:contain; }
+</style>
+<div id="img-modal" onclick="this.classList.remove('open')">
+  <img id="modal-img" src="" />
+</div>
+<script>
+function showModal(src) {
+  document.getElementById('modal-img').src = src;
+  document.getElementById('img-modal').classList.add('open');
+}
+</script>
+""", unsafe_allow_html=True)
 
 # ── load data ──────────────────────────────────────────────────────────────
 @st.cache_data(ttl=300)
@@ -12,7 +64,7 @@ def load() -> list[dict]:
 
 all_rows = load()
 
-# ── derive filter options from actual data ─────────────────────────────────
+# ── derive filter options ──────────────────────────────────────────────────
 def _sources(row: dict) -> list[str]:
     return list((row.get("sources") or {}).keys())
 
@@ -35,13 +87,12 @@ with st.sidebar:
     trans_filter = st.multiselect("Transmission", ["Automatic", "Manual"])
     sort_by = st.selectbox("Sort by", ["Price ↑", "Price ↓", "Year ↓", "KMs ↑", "Newest first"], index=4)
     st.divider()
-    if st.button("🔄 Refresh"):
+    if st.button("Refresh"):
         st.cache_data.clear()
         st.rerun()
 
 # ── apply filters ──────────────────────────────────────────────────────────
 rows = all_rows
-
 if source_filter:
     rows = [r for r in rows if any(s in source_filter for s in _sources(r))]
 if make_filter:
@@ -64,82 +115,87 @@ sort_key = {
 }[sort_by]
 rows.sort(key=sort_key)
 
-# ── header row ─────────────────────────────────────────────────────────────
-st.caption(f"{len(rows)} listing{'s' if len(rows) != 1 else ''} found")
-st.divider()
-
-# ── listing rows ───────────────────────────────────────────────────────────
-SOURCE_COLORS = {
-    "cars24":   "#e84118", "spinny": "#00a8ff", "olx":      "#3d9970",
-    "teambhp":  "#9b59b6", "9thgear": "#f39c12", "carwale": "#2980b9",
-    "cardekho": "#27ae60",
+# ── helpers ────────────────────────────────────────────────────────────────
+SOURCE_FAVICONS = {
+    "cars24":   "https://www.cars24.com/favicon.ico",
+    "spinny":   "https://www.spinny.com/favicon.ico",
+    "olx":      "https://www.olx.in/favicon.ico",
+    "carwale":  "https://www.carwale.com/favicon.ico",
+    "cardekho": "https://www.cardekho.com/favicon.ico",
+    "teambhp":  "https://www.team-bhp.com/favicon.ico",
+    "9thgear":  "https://9thgear.com/favicon.ico",
 }
 
+def fmt_price(price: int) -> str:
+    lakhs = price / 100_000
+    return f"₹{lakhs:.1f}L" if lakhs % 1 else f"₹{int(lakhs)}L"
+
+def fmt_kms(kms: int) -> str:
+    if kms >= 1000:
+        return f"{kms // 1000}k km"
+    return f"{kms} km"
+
+def trans_abbr(t: str) -> str:
+    if not t:
+        return ""
+    return "AT" if t.lower().startswith("a") else "MT"
+
+# ── listing count ──────────────────────────────────────────────────────────
+st.caption(f"{len(rows)} listing{'s' if len(rows) != 1 else ''} found")
+
+# ── listings ───────────────────────────────────────────────────────────────
 for row in rows:
-    col_img, col_info, col_price, col_del = st.columns([1, 3.5, 1.5, 1.2])
+    img     = row.get("image_url") or ""
+    year    = row.get("year") or ""
+    make    = row.get("make") or ""
+    model   = row.get("model") or ""
+    trans   = trans_abbr(row.get("transmission") or "")
+    variant = row.get("variant") or ""
+    kms     = fmt_kms(row["kms"]) if row.get("kms") else ""
+    price   = fmt_price(row["price"]) if row.get("price") else "—"
+    sources: dict = row.get("sources") or {}
 
-    # Thumbnail
-    with col_img:
-        img = row.get("image_url") or ""
-        if img:
-            st.image(img, width=130)
+    row1 = f"{year} {make} {model}" + (f" · {trans}" if trans else "")
+    row2_parts = [p for p in [variant, kms] if p]
+    row2 = " · ".join(row2_parts)
+
+    if img:
+        img_html = f'<img class="car-thumb" src="{img}" onclick="showModal(\'{img}\')" />'
+    else:
+        img_html = '<div class="car-thumb-placeholder">No image</div>'
+
+    sources_html = ""
+    for src, info in sources.items():
+        url     = info.get("url", "#")
+        favicon = SOURCE_FAVICONS.get(src, "")
+        if favicon:
+            sources_html += f'<a class="src-icon" href="{url}" target="_blank"><img src="{favicon}" title="{src}" /></a>'
         else:
-            st.markdown("<div style='width:130px;height:90px;background:#2a2a2a;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#555'>No image</div>", unsafe_allow_html=True)
+            sources_html += f'<a href="{url}" target="_blank" style="font-size:10px;color:#aaa">{src}</a>'
 
-    # Info
-    with col_info:
-        name = f"{row['year']} {row['make']} {row['model']}"
-        st.markdown(f"**{name}**")
-        st.caption(row.get("variant") or "—")
+    st.markdown(f"""
+<div class="car-card">
+  {img_html}
+  <div class="car-info">
+    <div class="car-row1">{row1}</div>
+    <div class="car-row2">{row2}</div>
+  </div>
+  <div class="car-price">{price}</div>
+  <div class="car-sources">{sources_html}</div>
+</div>
+""", unsafe_allow_html=True)
 
-        meta_parts = []
-        if row.get("kms"):
-            meta_parts.append(f"{row['kms']:,} km")
-        if row.get("transmission"):
-            meta_parts.append(row["transmission"])
-        if row.get("color"):
-            meta_parts.append(row["color"])
-        if row.get("location"):
-            meta_parts.append(row["location"])
-        if meta_parts:
-            st.caption(" · ".join(meta_parts))
-
-        # Source badges with links
-        sources: dict = row.get("sources") or {}
-        badge_html = ""
-        for src, info in sources.items():
-            color = SOURCE_COLORS.get(src, "#555")
-            link  = info.get("url", "#")
-            badge_html += (
-                f'<a href="{link}" target="_blank" style="'
-                f'background:{color};color:white;padding:2px 8px;border-radius:4px;'
-                f'font-size:11px;text-decoration:none;margin-right:4px">{src}</a>'
-            )
-        if badge_html:
-            st.markdown(badge_html, unsafe_allow_html=True)
-
-    # Price
-    with col_price:
-        price = row.get("price") or 0
-        lakhs = price / 100_000
-        st.markdown(f"### ₹{lakhs:.2f}L")
-        first_seen = row.get("first_seen", "")
-        if first_seen:
-            st.caption(f"Since {first_seen}")
-
-    # Actions
-    with col_del:
-        st.markdown("<div style='height:18px'></div>", unsafe_allow_html=True)
-        if st.button("Not interested", key=f"hide_{row['id']}", use_container_width=True, help="Hide this listing permanently"):
+    col_hide, col_del = st.columns([1, 1])
+    with col_hide:
+        if st.button("Not interested", key=f"hide_{row['id']}", use_container_width=True):
             db.soft_delete(row["id"])
             st.cache_data.clear()
             st.rerun()
-        if st.button("🗑️ Delete", key=f"del_{row['id']}", use_container_width=True, help="Remove from DB — will be re-fetched next scrape run"):
+    with col_del:
+        if st.button("Delete", key=f"del_{row['id']}", use_container_width=True):
             db.hard_delete(row["id"])
             st.cache_data.clear()
             st.rerun()
 
-    st.divider()
-
 if not rows:
-    st.info("No listings match your filters. Try widening the search or wait for the next scrape run.")
+    st.info("No listings match your filters.")
