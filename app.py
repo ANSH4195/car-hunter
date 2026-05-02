@@ -4,28 +4,59 @@ from datetime import datetime
 import db
 
 st.set_page_config(page_title="Car Hunter", layout="centered", initial_sidebar_state="collapsed")
+
+# ── handle actions triggered by the in-card dropdown ──────────────────────
+_p = st.query_params
+if "action" in _p:
+    _lid = _p.get("id")
+    if _lid:
+        if _p["action"] == "hide":
+            db.soft_delete(_lid)
+        elif _p["action"] == "delete":
+            db.hard_delete(_lid)
+    st.query_params.clear()
+    st.cache_data.clear()
+    st.rerun()
+
 st.title("Car Hunter")
 
-# ── modal JS injected via components iframe (st.markdown strips scripts) ───
+# ── JS injected into parent via zero-height iframe ─────────────────────────
+# st.markdown strips <script> and onclick — components.html iframe can reach
+# window.parent since Streamlit serves both on the same origin.
 components.html("""
 <script>
 (function() {
   var p = window.parent.document;
-  if (p.getElementById('img-modal')) return;
-  var modal = p.createElement('div');
-  modal.id = 'img-modal';
-  modal.style.cssText = 'display:none;position:fixed;top:0;left:0;width:100%;height:100%;' +
-    'background:rgba(0,0,0,0.93);z-index:9999;align-items:center;justify-content:center;cursor:pointer;';
-  var img = p.createElement('img');
-  img.id = 'modal-img';
-  img.style.cssText = 'max-width:95vw;max-height:90vh;object-fit:contain;border-radius:8px;';
-  modal.appendChild(img);
-  modal.addEventListener('click', function() { modal.style.display = 'none'; });
-  p.body.appendChild(modal);
+
+  // ── fullscreen image modal ──────────────────────────────────────────────
+  if (!p.getElementById('img-modal')) {
+    var modal = p.createElement('div');
+    modal.id = 'img-modal';
+    modal.style.cssText = 'display:none;position:fixed;top:0;left:0;width:100%;height:100%;' +
+      'background:rgba(0,0,0,0.93);z-index:9999;align-items:center;justify-content:center;cursor:pointer;';
+    var mimg = p.createElement('img');
+    mimg.id = 'modal-img';
+    mimg.style.cssText = 'max-width:95vw;max-height:90vh;object-fit:contain;border-radius:8px;';
+    modal.appendChild(mimg);
+    modal.addEventListener('click', function() { modal.style.display = 'none'; });
+    p.body.appendChild(modal);
+  }
+
+  // ── unified click handler on parent document ───────────────────────────
   p.addEventListener('click', function(e) {
+    // fullscreen image
     if (e.target && e.target.classList.contains('car-thumb')) {
-      img.src = e.target.src;
-      modal.style.display = 'flex';
+      p.getElementById('modal-img').src = e.target.src;
+      p.getElementById('img-modal').style.display = 'flex';
+      return;
+    }
+    // dropdown action item — navigate parent to trigger st.query_params rerun
+    var item = e.target && e.target.closest
+      ? e.target.closest('[data-action]')
+      : null;
+    if (item) {
+      e.preventDefault();
+      window.parent.location.href = '?action=' + item.dataset.action + '&id=' + item.dataset.lid;
     }
   }, true);
 })();
@@ -36,7 +67,8 @@ components.html("""
 st.markdown("""
 <style>
 .car-card {
-  display:flex;align-items:center;gap:10px;padding:10px 4px;
+  display:flex;align-items:center;gap:10px;padding:10px 0;
+  border-bottom:1px solid #2a2a2a;
 }
 .car-thumb {
   width:88px;height:64px;object-fit:cover;border-radius:6px;
@@ -57,24 +89,40 @@ st.markdown("""
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 }
 .car-row3 { font-size:13px;font-weight:700;margin-top:3px; }
-.car-sources {
+
+/* Right column: source icon(s) + divider + ⋯ menu */
+.car-right {
   border-left:1px solid #333;padding-left:10px;
-  display:flex;flex-direction:column;align-items:center;gap:5px;flex-shrink:0;
+  display:flex;flex-direction:column;align-items:center;
+  gap:0;flex-shrink:0;
+}
+.src-icons {
+  display:flex;flex-direction:column;align-items:center;
+  gap:5px;padding-bottom:6px;
 }
 .src-icon img { width:22px;height:22px;object-fit:contain; }
+.src-divider { width:100%;border-top:1px solid #333;margin-bottom:4px; }
 
-/* ⋯ popover column: border-left to match source icons */
-div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:last-child {
-  border-left:1px solid #333 !important;
-  padding-left:10px !important;
+/* ⋯ dropdown */
+.action-menu { position:relative; }
+.action-menu summary {
+  list-style:none;cursor:pointer;
+  font-size:18px;color:#777;padding:2px 4px;
+  user-select:none;
 }
-/* Strip Streamlit default padding from popover trigger */
-div[data-testid="stPopover"] > button {
-  background:none !important;border:none !important;box-shadow:none !important;
-  color:#888 !important;font-size:18px !important;padding:0 !important;
-  min-height:0 !important;line-height:1 !important;
+.action-menu summary::-webkit-details-marker { display:none; }
+.action-menu[open] summary { color:#ccc; }
+.action-dropdown {
+  position:absolute;right:0;top:calc(100% + 4px);
+  background:#1e1e1e;border:1px solid #3a3a3a;border-radius:7px;
+  min-width:140px;z-index:300;overflow:hidden;white-space:nowrap;
+  box-shadow:0 4px 16px rgba(0,0,0,0.5);
 }
-div[data-testid="stPopover"] > button:hover { color:#ccc !important; }
+.action-item {
+  padding:9px 14px;color:#ccc;font-size:12px;cursor:pointer;
+}
+.action-item:hover { background:#2a2a2a; color:#fff; }
+.action-divider { border-top:1px solid #333; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -190,15 +238,17 @@ for row in rows:
         url     = info.get("url", "#")
         favicon = SOURCE_FAVICONS.get(src, "")
         if favicon:
-            src_icons_html += f'<a class="src-icon" href="{url}" target="_blank"><img src="{favicon}" title="{src}" /></a>'
+            src_icons_html += (
+                f'<a class="src-icon" href="{url}" target="_blank">'
+                f'<img src="{favicon}" title="{src}" /></a>'
+            )
         else:
-            src_icons_html += f'<a href="{url}" target="_blank" style="font-size:10px;color:#aaa">{src}</a>'
+            src_icons_html += (
+                f'<a href="{url}" target="_blank" '
+                f'style="font-size:10px;color:#aaa">{src}</a>'
+            )
 
-    # Card HTML (thumb + info rows + source icons); ⋯ actions in Streamlit column
-    col_card, col_menu = st.columns([10, 1], gap="small")
-
-    with col_card:
-        st.markdown(f"""
+    st.markdown(f"""
 <div class="car-card">
   {img_html}
   <div class="car-info">
@@ -206,22 +256,20 @@ for row in rows:
     <div class="car-row2">{row2}</div>
     <div class="car-row3">{price}</div>
   </div>
-  <div class="car-sources">{src_icons_html}</div>
+  <div class="car-right">
+    <div class="src-icons">{src_icons_html}</div>
+    <div class="src-divider"></div>
+    <details class="action-menu">
+      <summary>&#8943;</summary>
+      <div class="action-dropdown">
+        <div class="action-item" data-action="hide" data-lid="{lid}">Not interested</div>
+        <div class="action-divider"></div>
+        <div class="action-item" data-action="delete" data-lid="{lid}">Delete</div>
+      </div>
+    </details>
+  </div>
 </div>
 """, unsafe_allow_html=True)
-
-    with col_menu:
-        with st.popover("⋯"):
-            if st.button("Not interested", key=f"hide_{lid}", use_container_width=True):
-                db.soft_delete(lid)
-                st.cache_data.clear()
-                st.rerun()
-            if st.button("Delete", key=f"del_{lid}", use_container_width=True):
-                db.hard_delete(lid)
-                st.cache_data.clear()
-                st.rerun()
-
-    st.divider()
 
 if not rows:
     st.info("No listings match your filters.")
