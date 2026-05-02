@@ -42,21 +42,11 @@ components.html("""
     p.body.appendChild(modal);
   }
 
-  // ── unified click handler on parent document ───────────────────────────
+  // ── fullscreen image click handler ────────────────────────────────────
   p.addEventListener('click', function(e) {
-    // fullscreen image
     if (e.target && e.target.classList.contains('car-thumb')) {
       p.getElementById('modal-img').src = e.target.src;
       p.getElementById('img-modal').style.display = 'flex';
-      return;
-    }
-    // dropdown action item — navigate parent to trigger st.query_params rerun
-    var item = e.target && e.target.closest
-      ? e.target.closest('[data-action]')
-      : null;
-    if (item) {
-      e.preventDefault();
-      window.parent.location.href = '?action=' + item.dataset.action + '&id=' + item.dataset.lid;
     }
   }, true);
 })();
@@ -119,7 +109,8 @@ st.markdown("""
   box-shadow:0 4px 16px rgba(0,0,0,0.5);
 }
 .action-item {
-  padding:9px 14px;color:#ccc;font-size:12px;cursor:pointer;
+  display:block;padding:9px 14px;color:#ccc;font-size:12px;cursor:pointer;
+  text-decoration:none;
 }
 .action-item:hover { background:#2a2a2a; color:#fff; }
 .action-divider { border-top:1px solid #333; }
@@ -262,9 +253,9 @@ for row in rows:
     <details class="action-menu">
       <summary>&#8943;</summary>
       <div class="action-dropdown">
-        <div class="action-item" data-action="hide" data-lid="{lid}">Not interested</div>
+        <a class="action-item" href="?action=hide&id={lid}">Not interested</a>
         <div class="action-divider"></div>
-        <div class="action-item" data-action="delete" data-lid="{lid}">Delete</div>
+        <a class="action-item" href="?action=delete&id={lid}">Delete</a>
       </div>
     </details>
   </div>
