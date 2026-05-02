@@ -4,20 +4,6 @@ from datetime import datetime
 import db
 
 st.set_page_config(page_title="Car Hunter", layout="centered", initial_sidebar_state="collapsed")
-
-# ── handle card actions via query params ───────────────────────────────────
-_p = st.query_params
-if "action" in _p:
-    _lid = _p.get("id")
-    if _lid:
-        if _p["action"] == "hide":
-            db.soft_delete(_lid)
-        elif _p["action"] == "delete":
-            db.hard_delete(_lid)
-    st.query_params.clear()
-    st.cache_data.clear()
-    st.rerun()
-
 st.title("Car Hunter")
 
 # ── modal JS injected via components iframe (st.markdown strips scripts) ───
@@ -46,12 +32,11 @@ components.html("""
 </script>
 """, height=0)
 
-# ── card styles ────────────────────────────────────────────────────────────
+# ── styles ─────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
 .car-card {
-  display:flex;align-items:center;gap:10px;
-  padding:10px 4px;border-bottom:1px solid #2a2a2a;
+  display:flex;align-items:center;gap:10px;padding:10px 4px;
 }
 .car-thumb {
   width:88px;height:64px;object-fit:cover;border-radius:6px;
@@ -71,36 +56,25 @@ st.markdown("""
   font-size:12px;color:#888;margin-top:2px;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 }
-.car-row3 {
-  font-size:13px;font-weight:700;margin-top:3px;
-}
-.car-right {
+.car-row3 { font-size:13px;font-weight:700;margin-top:3px; }
+.car-sources {
   border-left:1px solid #333;padding-left:10px;
-  display:flex;flex-direction:column;align-items:center;
-  gap:0;flex-shrink:0;
-}
-.src-icons {
-  display:flex;flex-direction:column;align-items:center;gap:5px;
-  padding-bottom:6px;
+  display:flex;flex-direction:column;align-items:center;gap:5px;flex-shrink:0;
 }
 .src-icon img { width:22px;height:22px;object-fit:contain; }
-.src-divider { width:100%;border-top:1px solid #333;margin-bottom:4px; }
-.action-menu { position:relative; }
-.action-menu summary {
-  list-style:none;cursor:pointer;
-  font-size:16px;color:#888;padding:2px 4px;user-select:none;
+
+/* ⋯ popover column: border-left to match source icons */
+div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:last-child {
+  border-left:1px solid #333 !important;
+  padding-left:10px !important;
 }
-.action-menu summary::-webkit-details-marker { display:none; }
-.action-dropdown {
-  position:absolute;right:0;top:100%;
-  background:#1e1e1e;border:1px solid #444;border-radius:6px;
-  min-width:130px;z-index:200;overflow:hidden;white-space:nowrap;
+/* Strip Streamlit default padding from popover trigger */
+div[data-testid="stPopover"] > button {
+  background:none !important;border:none !important;box-shadow:none !important;
+  color:#888 !important;font-size:18px !important;padding:0 !important;
+  min-height:0 !important;line-height:1 !important;
 }
-.action-dropdown a {
-  display:block;padding:8px 12px;
-  color:#ccc;text-decoration:none;font-size:12px;
-}
-.action-dropdown a:hover { background:#2a2a2a; }
+div[data-testid="stPopover"] > button:hover { color:#ccc !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -190,6 +164,7 @@ st.caption(f"{len(rows)} listing{'s' if len(rows) != 1 else ''} found")
 
 # ── listings ───────────────────────────────────────────────────────────────
 for row in rows:
+    lid     = row["id"]
     img     = row.get("image_url") or ""
     year    = row.get("year") or ""
     make    = row.get("make") or ""
@@ -198,7 +173,6 @@ for row in rows:
     variant = row.get("variant") or ""
     kms     = fmt_kms(row["kms"]) if row.get("kms") else ""
     price   = fmt_price(row["price"]) if row.get("price") else "—"
-    lid     = row["id"]
     sources: dict = row.get("sources") or {}
 
     row1 = f"{year} {make} {model}" + (f" · {trans}" if trans else "")
@@ -220,7 +194,11 @@ for row in rows:
         else:
             src_icons_html += f'<a href="{url}" target="_blank" style="font-size:10px;color:#aaa">{src}</a>'
 
-    st.markdown(f"""
+    # Card HTML (thumb + info rows + source icons); ⋯ actions in Streamlit column
+    col_card, col_menu = st.columns([10, 1], gap="small")
+
+    with col_card:
+        st.markdown(f"""
 <div class="car-card">
   {img_html}
   <div class="car-info">
@@ -228,19 +206,22 @@ for row in rows:
     <div class="car-row2">{row2}</div>
     <div class="car-row3">{price}</div>
   </div>
-  <div class="car-right">
-    <div class="src-icons">{src_icons_html}</div>
-    <div class="src-divider"></div>
-    <details class="action-menu">
-      <summary>&#8943;</summary>
-      <div class="action-dropdown">
-        <a href="?action=hide&id={lid}">Not interested</a>
-        <a href="?action=delete&id={lid}">Delete</a>
-      </div>
-    </details>
-  </div>
+  <div class="car-sources">{src_icons_html}</div>
 </div>
 """, unsafe_allow_html=True)
+
+    with col_menu:
+        with st.popover("⋯"):
+            if st.button("Not interested", key=f"hide_{lid}", use_container_width=True):
+                db.soft_delete(lid)
+                st.cache_data.clear()
+                st.rerun()
+            if st.button("Delete", key=f"del_{lid}", use_container_width=True):
+                db.hard_delete(lid)
+                st.cache_data.clear()
+                st.rerun()
+
+    st.divider()
 
 if not rows:
     st.info("No listings match your filters.")
