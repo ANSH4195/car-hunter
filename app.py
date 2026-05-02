@@ -67,14 +67,15 @@ st.markdown("""
 }
 .car-row3 { font-size:13px;font-weight:700;margin-top:3px; }
 
-.src-icons { display:flex;flex-direction:column;align-items:center;gap:5px; }
+.src-icons { display:flex;flex-direction:column;align-items:center;gap:5px;margin-bottom:4px; }
 .src-icon img { width:22px;height:22px;object-fit:contain; }
+.src-divider { width:100%;border-top:1px solid #333;margin-bottom:4px; }
 
 /* right column: border + centre everything */
 div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:last-child {
   border-left:1px solid #333 !important;
   display:flex !important;flex-direction:column !important;
-  align-items:center !important;gap:6px !important;
+  align-items:center !important;gap:0 !important;
   padding-left:10px !important;
 }
 /* bare ⋯ button — no border, no bg, no chevron */
@@ -224,7 +225,7 @@ for row in rows:
 </div>
 """, unsafe_allow_html=True)
     with col_menu:
-        st.markdown(f'<div class="src-icons">{src_icons_html}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="src-icons">{src_icons_html}</div><div class="src-divider"></div>', unsafe_allow_html=True)
         with st.popover("⋯"):
             if st.button("Not interested", key=f"hide_{lid}", use_container_width=True):
                 db.soft_delete(lid)
