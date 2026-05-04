@@ -2,6 +2,7 @@
 
 ## 2026-05-04 (3)
 - TeamBHP: added Mitsubishi Pajero Sport model ID (2812) — previously zero listings captured from this source; fixed multi-word model name parsing so "Pajero Sport" is stored correctly; total listings per run increased from ~20 to ~52
+- TeamBHP pagination confirmed working: `restore=1` session replay is necessary (full URL ignores `page=N` and always returns page 1); pagination kept as-is
 
 ## 2026-05-04 (2)
 - Carwale: switched VW/Skoda/Jeep/Ford to hyphenated `{make}-{model}` URLs for server-side model filtering (~33% fewer stocks fetched); added full pagination for Audi/BMW/Mercedes/Volvo broad-make URLs so results beyond page 1 are no longer missed
