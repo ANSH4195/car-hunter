@@ -38,8 +38,8 @@ MODEL_IDS = [
     2569, 2467, 1669, 2875, 2912, 1736, 2298, 2818, 3086, 3108, 1738, 1737, 2595,
     # Volvo — all
     2486, 2097, 3232, 3010, 3195, 3270, 2869, 2747,
-    # VW Tiguan, Skoda Octavia, Jeep Compass, Ford Endeavour
-    3037, 1613, 3042, 1991,
+    # VW Tiguan, Skoda Octavia, Jeep Compass, Ford Endeavour, Mitsubishi Pajero Sport
+    3037, 1613, 3042, 1991, 2812,
 ]
 
 MAKE_NORM = {
@@ -47,6 +47,7 @@ MAKE_NORM = {
     "mercedes": "Mercedes-Benz", "mercedes-benz": "Mercedes-Benz",
     "volkswagen": "Volkswagen", "vw": "Volkswagen",
     "skoda": "Skoda", "jeep": "Jeep", "ford": "Ford", "volvo": "Volvo",
+    "mitsubishi": "Mitsubishi",
 }
 
 
@@ -92,7 +93,7 @@ def _parse_row(row) -> CarListing | None:
         year    = int(title_p[0]) if title_p and title_p[0].isdigit() else 0
         make_raw = title_p[1].lower() if len(title_p) > 1 else ""
         make     = MAKE_NORM.get(make_raw, make_raw.title())
-        model    = title_p[2] if len(title_p) > 2 else ""
+        model    = " ".join(title_p[2:]) if len(title_p) > 2 else ""
 
         location    = _after("Location:")
         kms_raw     = _after("Km:")
@@ -137,8 +138,6 @@ def scrape() -> list[CarListing]:
     results: list[CarListing] = []
     seen_urls: set[str] = set()
     with httpx.Client(headers=HEADERS, timeout=25, follow_redirects=True) as client:
-        # Page 1: full search URL (sets session cookie on server)
-        # Pages 2+: use restore=1 so server replays stored search
         for page in range(1, 10):
             url = _search_url(page) if page == 1 else f"{BASE}/search_results/?restore=1&page={page}"
             try:
