@@ -23,13 +23,12 @@
 
 ## Implemented
 
-- **O4** TeamBHP: added Mitsubishi Pajero Sport (model ID 2812); fixed multi-word model name parsing; confirmed `restore=1` session pagination works correctly — full URL always returns page 1 regardless of `page=N`. ~20 → 52 listings/run.
-- **O3** Carwale URL optimisation — switched VW/Skoda/Jeep/Ford to hyphenated `{make}-{model}` URLs (server-side model filter); added pagination for broad-make URLs (Audi/BMW/Mercedes/Volvo). ~33% fewer stocks fetched per run.
-
 ---
 
 ## Verified
 
+- **O4** TeamBHP: added Mitsubishi Pajero Sport (model ID 2812); fixed multi-word model name parsing; confirmed `restore=1` session pagination works correctly — full URL always returns page 1 regardless of `page=N`. ~20 → 52 listings/run.
+- **O3** Carwale URL optimisation — switched VW/Skoda/Jeep/Ford to hyphenated `{make}-{model}` URLs (server-side model filter); added pagination for broad-make URLs (Audi/BMW/Mercedes/Volvo). ~33% fewer stocks fetched per run.
 - **F3** UX: Source navigation click area
 - **B2** 9thgear Gemini 429 rate limit — removed Gemini entirely from 9thgear; card text is pipe-delimited with fixed structure, all fields parsed directly
 - **O1** Incremental scraping — load all existing IDs once at run start; skip upsert for known listings (~95% fewer DB writes); URL pre-filter for 9thgear/OLX skips parse for already-seen cards
