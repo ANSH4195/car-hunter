@@ -1,5 +1,8 @@
 # Changelog
 
+## 2026-05-04 (2)
+- Carwale: switched VW/Skoda/Jeep/Ford to hyphenated `{make}-{model}` URLs for server-side model filtering (~33% fewer stocks fetched); added full pagination for Audi/BMW/Mercedes/Volvo broad-make URLs so results beyond page 1 are no longer missed
+
 ## 2026-05-04
 - Incremental scraping: load all existing listing IDs once at run start; skip upsert for already-seen listings (~95% fewer DB writes on steady-state runs)
 - Added URL pre-filter for 9thgear and OLX: skip Gemini/parse entirely for cards whose source URL is already in the DB

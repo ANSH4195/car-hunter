@@ -1,12 +1,13 @@
 """
 CarWale scraper — Karnataka, Diesel, target makes.
-URL format: /used/{city}/{make}/
-Data is in window.__INITIAL_STATE__ → usedSearch.stocks (SSR JSON, ~28 results per page).
-Diesel filter is applied in code since the URL doesn't support it.
+URL formats:
+  broad: /used/{city}/{make}/          — any model, ~28 results/page
+  model: /used/{city}/{make}-{model}/  — model-filtered, no server-side pagination beyond p1
+Data is in window.__INITIAL_STATE__ → usedSearch.stocks (SSR JSON).
+Diesel filter applied in code (no server-side fuel param exists).
 """
 from __future__ import annotations
 import json
-import re
 import httpx
 from scrapers.base import CarListing
 from filters import CITY_STATE
@@ -21,17 +22,38 @@ HEADERS = {
 }
 
 CITIES = ["bangalore", "mysore", "mangalore", "hubli", "bhopal", "indore", "gwalior", "jabalpur"]
-MAKES  = ["audi", "bmw", "mercedes-benz", "volkswagen", "skoda", "jeep", "ford", "volvo"]
+
+# Makes where any model is valid — use broad URL + paginate
+ANY_MODEL = ["audi", "bmw", "mercedes-benz", "volvo"]
+
+# Makes where only one model matters — use hyphenated make-model URL (server-side filtered)
+# Note: /page-N/ pagination is broken on these URLs; page 1 covers all inventory for
+# low-volume models (VW Tiguan, Skoda Octavia, Ford Endeavour). Jeep Compass has more
+# stock but broad-URL page 1 also only returned ~22 Compass, so coverage is comparable.
+MODEL_SPECIFIC: dict[str, str] = {
+    "volkswagen": "tiguan",
+    "skoda":      "octavia",
+    "jeep":       "compass",
+    "ford":       "endeavour",
+}
+
+PAGE_SIZE = 28  # stocks per page on broad URLs
 
 
-def _search_url(city: str, make: str) -> str:
-    return f"{BASE}/used/{city}/{make}/"
+def _broad_url(city: str, make: str, page: int = 1) -> str:
+    if page == 1:
+        return f"{BASE}/used/{city}/{make}/"
+    return f"{BASE}/used/{city}/{make}/page-{page}/"
 
 
-def _extract_stocks(html: str) -> list[dict]:
+def _model_url(city: str, make: str, model: str) -> str:
+    return f"{BASE}/used/{city}/{make}-{model}/"
+
+
+def _extract_stocks_and_total(html: str) -> tuple[list[dict], int]:
     idx = html.find("window.__INITIAL_STATE__ = {")
     if idx < 0:
-        return []
+        return [], 0
     start = idx + len("window.__INITIAL_STATE__ = ")
     depth = 0
     end_pos = start
@@ -44,11 +66,13 @@ def _extract_stocks(html: str) -> list[dict]:
                 end_pos = i + 1
                 break
     try:
-        data = json.loads(html[start:end_pos])
-        return data.get("usedSearch", {}).get("stocks", [])
+        data  = json.loads(html[start:end_pos])
+        us    = data.get("usedSearch", {})
+        total = int(us.get("totalCount") or 0)
+        return us.get("stocks", []), total
     except Exception as e:
         print(f"[carwale] __INITIAL_STATE__ parse error: {e}")
-        return []
+        return [], 0
 
 
 def _to_listing(stock: dict) -> CarListing | None:
@@ -90,18 +114,50 @@ def _to_listing(stock: dict) -> CarListing | None:
         return None
 
 
+def _fetch_all_pages(client: httpx.Client, city: str, make: str) -> list[dict]:
+    """Fetch all pages for a broad make URL."""
+    all_stocks: list[dict] = []
+    page = 1
+    while True:
+        url = _broad_url(city, make, page)
+        try:
+            resp = client.get(url)
+            if resp.status_code != 200:
+                print(f"[carwale] {url} → {resp.status_code}")
+                break
+            stocks, total = _extract_stocks_and_total(resp.text)
+            if not stocks:
+                break
+            all_stocks.extend(stocks)
+            if len(all_stocks) >= total or len(stocks) < PAGE_SIZE:
+                break
+            page += 1
+        except Exception as e:
+            print(f"[carwale] error {url}: {e}")
+            break
+    return all_stocks
+
+
 def scrape() -> list[CarListing]:
     results: list[CarListing] = []
     with httpx.Client(headers=HEADERS, timeout=30, follow_redirects=True) as client:
         for city in CITIES:
-            for make in MAKES:
-                url = _search_url(city, make)
+            # Broad makes: paginate to get full inventory
+            for make in ANY_MODEL:
+                for stock in _fetch_all_pages(client, city, make):
+                    listing = _to_listing(stock)
+                    if listing:
+                        results.append(listing)
+
+            # Model-specific makes: single model URL (no server-side pagination on these)
+            for make, model in MODEL_SPECIFIC.items():
+                url = _model_url(city, make, model)
                 try:
                     resp = client.get(url)
                     if resp.status_code != 200:
                         print(f"[carwale] {url} → {resp.status_code}")
                         continue
-                    stocks = _extract_stocks(resp.text)
+                    stocks, _ = _extract_stocks_and_total(resp.text)
                     for stock in stocks:
                         listing = _to_listing(stock)
                         if listing:

@@ -15,7 +15,6 @@
   - Wire up: add import + `("precarmart", precarmart.scrape)` to `scrape.py` SCRAPERS list
 - **F2** UX: Add last fetched date
 - **B1** Stale source links — due to deduplication, images may be updating but source links aren't; investigate and fix
-- **O3** Carwale fetches 588 listings / run; investigate if a more specific URL filter (city + make) reduces the set without missing real matches
 - **O4** TeamBHP pagination returns same rows for all pages (PHP session not persisting across page requests); investigate if `restore=1` requires a cookie that isn't being sent — or cap at page 1 since inventory is small
 
 ---
@@ -25,6 +24,8 @@
 ---
 
 ## Implemented
+
+- **O3** Carwale URL optimisation — switched VW/Skoda/Jeep/Ford to hyphenated `{make}-{model}` URLs (server-side model filter); added pagination for broad-make URLs (Audi/BMW/Mercedes/Volvo). ~33% fewer stocks fetched per run.
 
 ---
 
