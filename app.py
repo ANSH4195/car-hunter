@@ -200,7 +200,7 @@ rows.sort(key=sort_key)
 
 # ── helpers ────────────────────────────────────────────────────────────────
 SOURCE_FAVICONS = {
-    "cars24":   "https://www.cars24.com/favicon.ico",
+    "cars24":   "https://static-cdn.cars24.com/prod/cms/2026/01/22/7637dd96-ffb0-4cde-837b-f1f0f9f8bc66favicon.ico",
     "spinny":   "https://www.spinny.com/favicon.ico",
     "olx":      "https://www.olx.in/favicon.ico",
     "carwale":  "https://www.carwale.com/favicon.ico",
