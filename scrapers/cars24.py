@@ -24,6 +24,14 @@ from filters import MIN_YEAR, MAX_PRICE
 SOURCE = "cars24"
 BASE   = "https://www.cars24.com"
 
+CITY_CONFIGS = [
+    {"slug": "bangalore", "city_id": "4709", "state": "Karnataka"},
+    {"slug": "bhopal",    "city_id": "2987", "state": "Madhya Pradesh"},
+    {"slug": "indore",    "city_id": "2920", "state": "Madhya Pradesh"},
+    {"slug": "gwalior",   "city_id": "2948", "state": "Madhya Pradesh"},
+    {"slug": "jabalpur",  "city_id": "3119", "state": "Madhya Pradesh"},
+]
+
 MAKE_NORM = {
     "audi": "Audi", "bmw": "BMW",
     "mercedes": "Mercedes-Benz", "mercedes benz": "Mercedes-Benz", "mercedes-benz": "Mercedes-Benz",
@@ -32,10 +40,8 @@ MAKE_NORM = {
 }
 
 
-def _listing_url() -> str:
+def _listing_url(city_slug: str, city_id: str) -> str:
     current_year = datetime.date.today().year
-    # Cars24 filter: blanket makes first, then ;model:in: for restricted ones.
-    # Encoding: %3A = :, %3B = ;, %2C = ,, + = space in make names
     make_f = (
         "make%3A%3D%3Aaudi"
         "%3AOR%3Amake%3A%3D%3Abmw"
@@ -47,12 +53,12 @@ def _listing_url() -> str:
         "%3AOR%3Amake%3A%3D%3Askoda%3Bmodel%3Ain%3Akodiaq%2Coctavia"
     )
     return (
-        f"{BASE}/buy-used-diesel-cars-bangalore/?"
+        f"{BASE}/buy-used-diesel-cars-{city_slug}/?"
         f"f=listingPrice%3Abw%3A50000%2C{MAX_PRICE}"
         f"&f={make_f}"
         f"&f=year%3Abw%3A{MIN_YEAR}%2C{current_year}"
         f"&f=odometer%3Abw%3A0%2C1000000"
-        f"&sort=bestmatch&storeCityId=4709"
+        f"&sort=bestmatch&storeCityId={city_id}"
     )
 
 
@@ -132,7 +138,7 @@ def _parse_card(card) -> CarListing | None:
         return CarListing(
             make=make, model=model, variant=variant, year=year,
             kms=kms, fuel=fuel, transmission=trans, color="",
-            location=location, price=price, image_url=img_src,
+            location=location, state="", price=price, image_url=img_src,
             source_name=SOURCE, source_url=url,
         )
     except Exception as e:
@@ -149,20 +155,21 @@ async def _fetch_rendered(url: str) -> str:
 
 
 def scrape() -> list[CarListing]:
-    url = _listing_url()
-    try:
-        html  = asyncio.run(_fetch_rendered(url))
-        soup  = BeautifulSoup(html, "html.parser")
-        cards = soup.select('[class*="carCardWrapper"]')
-        if not cards:
-            print("[cars24] no cards found")
-            return []
-        results = []
-        for card in cards:
-            listing = _parse_card(card)
-            if listing:
-                results.append(listing)
-        return results
-    except Exception as e:
-        print(f"[cars24] error: {e}")
-        return []
+    results: list[CarListing] = []
+    for cfg in CITY_CONFIGS:
+        url = _listing_url(cfg["slug"], cfg["city_id"])
+        try:
+            html  = asyncio.run(_fetch_rendered(url))
+            soup  = BeautifulSoup(html, "html.parser")
+            cards = soup.select('[class*="carCardWrapper"]')
+            if not cards:
+                print(f"[cars24] no cards found for {cfg['slug']}")
+                continue
+            for card in cards:
+                listing = _parse_card(card)
+                if listing:
+                    listing.state = cfg["state"]
+                    results.append(listing)
+        except Exception as e:
+            print(f"[cars24] error ({cfg['slug']}): {e}")
+    return results

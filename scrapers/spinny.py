@@ -24,6 +24,13 @@ from filters import MIN_YEAR, MAX_KMS, MAX_PRICE
 SOURCE = "spinny"
 BASE   = "https://www.spinny.com"
 
+# Spinny city slugs (verify MP cities at spinny.com — not all cities are served).
+CITY_CONFIGS = [
+    {"slug": "bangalore", "state": "Karnataka"},
+    {"slug": "bhopal",    "state": "Madhya Pradesh"},
+    {"slug": "indore",    "state": "Madhya Pradesh"},
+]
+
 MAKE_NORM = {
     "audi": "Audi",
     "bmw": "BMW",
@@ -38,20 +45,18 @@ MAKE_NORM = {
 }
 
 
-def _listing_url(page: int = 1) -> str:
+def _listing_url(city_slug: str, page: int = 1) -> str:
     filter_obj: dict = {
         "fuel_type": ["diesel"],
-        # blanket makes (any model accepted)
         "make": ["audi", "bmw", "jeep", "mercedes-benz", "volvo"],
         "max_mileage": [str(MAX_KMS)],
         "max_price": [MAX_PRICE],
         "min_year": [str(MIN_YEAR)],
-        # specific models for makes not in the blanket list
         "model": ["endeavour", "octavia", "tiguan", "tiguan-allspace"],
     }
     if page > 1:
         filter_obj["page"] = [str(page)]
-    return f"{BASE}/used-cars-in-bangalore/s/?filterObject={quote(json.dumps(filter_obj))}"
+    return f"{BASE}/used-cars-in-{city_slug}/s/?filterObject={quote(json.dumps(filter_obj))}"
 
 
 def _parse_card(card) -> CarListing | None:
@@ -103,7 +108,7 @@ def _parse_card(card) -> CarListing | None:
         return CarListing(
             make=make, model=model, variant=variant, year=year,
             kms=kms, fuel="Diesel", transmission=trans, color="",
-            location=location, price=price, image_url=img_src,
+            location=location, state="", price=price, image_url=img_src,
             source_name=SOURCE, source_url=url,
         )
     except Exception as e:
@@ -122,25 +127,27 @@ async def _fetch_rendered(url: str) -> str:
 def scrape() -> list[CarListing]:
     results: list[CarListing] = []
     seen_urls: set[str] = set()
-    for page in range(1, 5):
-        url = _listing_url(page)
-        try:
-            html  = asyncio.run(_fetch_rendered(url))
-            soup  = BeautifulSoup(html, "html.parser")
-            cards = soup.select(".CarListingCardV2__carListingCardV2Root")
-            if not cards:
-                print(f"[spinny] no cards on page {page}, stopping")
+    for cfg in CITY_CONFIGS:
+        for page in range(1, 5):
+            url = _listing_url(cfg["slug"], page)
+            try:
+                html  = asyncio.run(_fetch_rendered(url))
+                soup  = BeautifulSoup(html, "html.parser")
+                cards = soup.select(".CarListingCardV2__carListingCardV2Root")
+                if not cards:
+                    print(f"[spinny] no cards for {cfg['slug']} page {page}, stopping")
+                    break
+                new_this_page = 0
+                for card in cards:
+                    listing = _parse_card(card)
+                    if listing and listing.source_url not in seen_urls:
+                        seen_urls.add(listing.source_url)
+                        listing.state = cfg["state"]
+                        results.append(listing)
+                        new_this_page += 1
+                if new_this_page == 0:
+                    break
+            except Exception as e:
+                print(f"[spinny] error {cfg['slug']} page {page}: {e}")
                 break
-            new_this_page = 0
-            for card in cards:
-                listing = _parse_card(card)
-                if listing and listing.source_url not in seen_urls:
-                    seen_urls.add(listing.source_url)
-                    results.append(listing)
-                    new_this_page += 1
-            if new_this_page == 0:
-                break  # pagination returned duplicate page
-        except Exception as e:
-            print(f"[spinny] error page {page}: {e}")
-            break
     return results

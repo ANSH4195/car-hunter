@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-05-03
+- Expanded scraping to Madhya Pradesh: Bhopal, Indore, Gwalior, Jabalpur across Cars24, Spinny, Carwale, CardDekho, OLX
+- Added `state` field to listings (DB migration: `alter table listings add column if not exists state text;`)
+- Added State filter in sidebar to view Karnataka vs Madhya Pradesh listings independently
+- City/location now shown in each listing card
+
 ## 2026-05-01
 - Rewrote TeamBHP scraper: plain httpx works (server-rendered); extracted MakeModel IDs from tree_MakeModel JS; session-based pagination; 51 unique listings
 - Rewrote Cars24 scraper: crawl4ai on pre-filtered URL (f= syntax); was returning 0 (SSR shell has empty carList, data is client-rendered)

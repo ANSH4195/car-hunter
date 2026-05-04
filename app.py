@@ -148,6 +148,7 @@ def _sources(row: dict) -> list[str]:
     return list((row.get("sources") or {}).keys())
 
 all_sources = sorted({s for r in all_rows for s in _sources(r)})
+all_states  = sorted({r["state"] for r in all_rows if r.get("state")})
 all_makes   = sorted({r["make"] for r in all_rows if r.get("make")})
 all_models  = sorted({r["model"] for r in all_rows if r.get("model")})
 all_years   = [r["year"] for r in all_rows if r.get("year")]
@@ -158,6 +159,7 @@ year_hi     = max(all_years) if all_years else 2025
 with st.sidebar:
     st.header("Filters")
     source_filter = st.multiselect("Source", all_sources)
+    state_filter  = st.multiselect("State", all_states)
     make_filter   = st.multiselect("Make", all_makes)
     model_filter  = st.multiselect("Model", all_models)
     year_min, year_max = st.slider("Year", year_lo, year_hi, (year_lo, year_hi))
@@ -174,6 +176,8 @@ with st.sidebar:
 rows = all_rows
 if source_filter:
     rows = [r for r in rows if any(s in source_filter for s in _sources(r))]
+if state_filter:
+    rows = [r for r in rows if r.get("state") in state_filter]
 if make_filter:
     rows = [r for r in rows if r["make"] in make_filter]
 if model_filter:
@@ -249,15 +253,16 @@ for row in rows:
     year    = row.get("year") or ""
     make    = row.get("make") or ""
     model   = row.get("model") or ""
-    trans   = trans_abbr(row.get("transmission") or "")
-    variant = row.get("variant") or ""
-    kms     = fmt_kms(row["kms"]) if row.get("kms") else ""
-    price   = fmt_price(row["price"]) if row.get("price") else "—"
+    trans    = trans_abbr(row.get("transmission") or "")
+    variant  = row.get("variant") or ""
+    kms      = fmt_kms(row["kms"]) if row.get("kms") else ""
+    price    = fmt_price(row["price"]) if row.get("price") else "—"
+    location = row.get("location") or ""
     sources: dict = row.get("sources") or {}
 
     make_html = brand_logo_html(make) if make else ""
     row1 = f"{year} {make_html} {model}" + (f" · {trans}" if trans else "")
-    row2_parts = [p for p in [variant, kms] if p]
+    row2_parts = [p for p in [variant, kms, location] if p]
     row2 = " · ".join(row2_parts)
 
     img_html = (

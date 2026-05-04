@@ -14,6 +14,7 @@ class CarListing:
     transmission: str
     color: str
     location: str
+    state: str
     price: int
     image_url: str
     source_name: str

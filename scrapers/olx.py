@@ -20,6 +20,11 @@ from filters import MIN_YEAR, MAX_KMS, MAX_PRICE
 
 SOURCE = "olx"
 
+STATE_CONFIGS = [
+    {"slug": "karnataka_g2001159",      "state": "Karnataka"},
+    {"slug": "madhya-pradesh_g2001162", "state": "Madhya Pradesh"},
+]
+
 # Maps OLX title keywords → structured make
 MAKE_MAP = {
     "audi": "Audi",
@@ -33,12 +38,10 @@ MAKE_MAP = {
 }
 
 
-def _listing_url() -> str:
+def _listing_url(slug: str) -> str:
     current_year = datetime.date.today().year
-    # Makes without a model_eq entry → OLX returns all models for that make.
-    # Makes with a model_eq entry → restricted to those models only.
     return (
-        "https://www.olx.in/en-in/karnataka_g2001159/cars_c84"
+        f"https://www.olx.in/en-in/{slug}/cars_c84"
         "?filter=make_eq_audi-1_and_bmw_and_ford_and_jeep_and_mercedes-benz_and_skoda_and_volkswagen_and_volvo"
         f"%2Cmileage_max_{MAX_KMS}"
         "%2Cmodel_eq_ford-endeavour_and_jeep-compass_and_skoda-kodiaq_and_skoda-octavia_and_volkswagen-tiguan"
@@ -98,7 +101,7 @@ def _parse_card(card) -> CarListing | None:
         return CarListing(
             make=make, model=model, variant=variant, year=year,
             kms=kms, fuel="Diesel", transmission="",
-            color="", location="Karnataka",
+            color="", location="", state="",
             price=price, image_url=image_url,
             source_name=SOURCE, source_url=url,
         )
@@ -116,20 +119,22 @@ async def _fetch_rendered(url: str) -> str:
 
 
 def scrape() -> list[CarListing]:
-    url = _listing_url()
-    try:
-        html = asyncio.run(_fetch_rendered(url))
-        soup = BeautifulSoup(html, "html.parser")
-        cards = soup.select('[data-aut-id="itemBox2"]')
-        if not cards:
-            print("[olx] no cards found")
-            return []
-        results = []
-        for card in cards:
-            listing = _parse_card(card)
-            if listing:
-                results.append(listing)
-        return results
-    except Exception as e:
-        print(f"[olx] error: {e}")
-        return []
+    results: list[CarListing] = []
+    for cfg in STATE_CONFIGS:
+        url = _listing_url(cfg["slug"])
+        try:
+            html = asyncio.run(_fetch_rendered(url))
+            soup = BeautifulSoup(html, "html.parser")
+            cards = soup.select('[data-aut-id="itemBox2"]')
+            if not cards:
+                print(f"[olx] no cards found for {cfg['state']}")
+                continue
+            for card in cards:
+                listing = _parse_card(card)
+                if listing:
+                    listing.state    = cfg["state"]
+                    listing.location = cfg["state"]
+                    results.append(listing)
+        except Exception as e:
+            print(f"[olx] error ({cfg['state']}): {e}")
+    return results

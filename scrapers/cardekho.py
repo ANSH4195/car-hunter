@@ -17,6 +17,10 @@ from normalizer import parse_price, parse_kms
 SOURCE  = "cardekho"
 MAKES   = ["Audi", "BMW", "Mercedes-Benz", "Volkswagen", "Skoda", "Jeep", "Ford", "Volvo"]
 BASE    = "https://www.cardekho.com"
+REGIONS = [
+    {"slug": "karnataka",      "state": "Karnataka"},
+    {"slug": "madhya-pradesh", "state": "Madhya Pradesh"},
+]
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
@@ -25,8 +29,8 @@ HEADERS = {
 }
 
 
-def _search_url(make: str, page: int = 1) -> str:
-    return f"{BASE}/used-cars/used-{make}-cars-in-karnataka?fuel=Diesel&page={page}"
+def _search_url(make: str, region: str, page: int = 1) -> str:
+    return f"{BASE}/used-cars/used-{make}-cars-in-{region}?fuel=Diesel&page={page}"
 
 
 def _parse_card(card) -> CarListing | None:
@@ -56,7 +60,7 @@ def _parse_card(card) -> CarListing | None:
         trans = "Automatic" if "Automatic" in card_text else ("Manual" if "Manual" in card_text else "")
 
         location_el = card.select_one("[class*='location']") or card.select_one("[class*='city']")
-        location    = location_el.get_text(strip=True) if location_el else "Karnataka"
+        location    = location_el.get_text(strip=True) if location_el else ""
 
         link_el = card.select_one("a[href*='used-car-details']") or card.select_one("a[href]")
         href    = link_el["href"] if link_el else ""
@@ -73,7 +77,7 @@ def _parse_card(card) -> CarListing | None:
         return CarListing(
             make=make, model=model, variant=variant, year=year,
             kms=kms or 0, fuel="Diesel", transmission=trans, color="",
-            location=location, price=price, image_url=image_url,
+            location=location, state="", price=price, image_url=image_url,
             source_name=SOURCE, source_url=url,
         )
     except Exception as e:
@@ -84,23 +88,26 @@ def _parse_card(card) -> CarListing | None:
 def scrape() -> list[CarListing]:
     results: list[CarListing] = []
     with httpx.Client(headers=HEADERS, timeout=30, follow_redirects=True) as client:
-        for make in MAKES:
-            for page in range(1, 4):
-                url = _search_url(make, page)
-                try:
-                    resp = client.get(url)
-                    if resp.status_code != 200:
-                        print(f"[cardekho] {url} → {resp.status_code}")
+        for region in REGIONS:
+            for make in MAKES:
+                for page in range(1, 4):
+                    url = _search_url(make, region["slug"], page)
+                    try:
+                        resp = client.get(url)
+                        if resp.status_code != 200:
+                            print(f"[cardekho] {url} → {resp.status_code}")
+                            break
+                        soup  = BeautifulSoup(resp.text, "html.parser")
+                        cards = soup.select(".NewUcExCard")
+                        if not cards:
+                            break
+                        for card in cards:
+                            listing = _parse_card(card)
+                            if listing:
+                                listing.state    = region["state"]
+                                listing.location = listing.location or region["state"]
+                                results.append(listing)
+                    except Exception as e:
+                        print(f"[cardekho] error {url}: {e}")
                         break
-                    soup  = BeautifulSoup(resp.text, "html.parser")
-                    cards = soup.select(".NewUcExCard")
-                    if not cards:
-                        break
-                    for card in cards:
-                        listing = _parse_card(card)
-                        if listing:
-                            results.append(listing)
-                except Exception as e:
-                    print(f"[cardekho] error {url}: {e}")
-                    break
     return results

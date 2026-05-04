@@ -12,6 +12,17 @@ TARGET: dict[str, list[str] | None] = {
     "ford":          ["endeavour"],
 }
 
+CITY_STATE: dict[str, str] = {
+    "bangalore":  "Karnataka",
+    "mysore":     "Karnataka",
+    "mangalore":  "Karnataka",
+    "hubli":      "Karnataka",
+    "bhopal":     "Madhya Pradesh",
+    "indore":     "Madhya Pradesh",
+    "gwalior":    "Madhya Pradesh",
+    "jabalpur":   "Madhya Pradesh",
+}
+
 MIN_YEAR   = 2017
 MAX_KMS    = 150_000
 MAX_PRICE  = 2_500_000

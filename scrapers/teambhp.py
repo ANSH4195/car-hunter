@@ -16,6 +16,7 @@ import httpx
 from bs4 import BeautifulSoup
 from scrapers.base import CarListing
 from normalizer import parse_kms
+from filters import CITY_STATE
 
 SOURCE = "teambhp"
 BASE   = "https://classifieds.team-bhp.com"
@@ -120,10 +121,11 @@ def _parse_row(row) -> CarListing | None:
         if not all([make, model, year, price]):
             return None
 
+        state = CITY_STATE.get(location.lower().split(",")[0].strip(), "")
         return CarListing(
             make=make, model=model, variant=variant, year=year,
             kms=kms, fuel=fuel or "Diesel", transmission=trans, color="",
-            location=location, price=price, image_url=img_src,
+            location=location, state=state, price=price, image_url=img_src,
             source_name=SOURCE, source_url=url,
         )
     except Exception as e:

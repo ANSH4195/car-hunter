@@ -52,6 +52,7 @@ def upsert(car: CarListing) -> None:
             "transmission": car.transmission,
             "color":        car.color,
             "location":     car.location,
+            "state":        car.state,
             "price":        car.price,
             "image_url":    car.image_url,
             "sources":      {car.source_name: {"url": car.source_url, "price": car.price}},

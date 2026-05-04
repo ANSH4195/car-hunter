@@ -9,6 +9,7 @@ import json
 import re
 import httpx
 from scrapers.base import CarListing
+from filters import CITY_STATE
 
 SOURCE = "carwale"
 BASE   = "https://www.carwale.com"
@@ -19,7 +20,7 @@ HEADERS = {
     "Referer": "https://www.google.com/",
 }
 
-CITIES = ["bangalore", "mysore", "mangalore", "hubli"]
+CITIES = ["bangalore", "mysore", "mangalore", "hubli", "bhopal", "indore", "gwalior", "jabalpur"]
 MAKES  = ["audi", "bmw", "mercedes-benz", "volkswagen", "skoda", "jeep", "ford", "volvo"]
 
 
@@ -64,6 +65,7 @@ def _to_listing(stock: dict) -> CarListing | None:
         price   = int(stock.get("priceNumeric") or 0)
         trans   = stock.get("transmission", "")
         city    = stock.get("cityName", "") or stock.get("areaName", "")
+        state   = CITY_STATE.get(city.lower(), "")
 
         image_url = stock.get("imageUrl", "")
         if not image_url and stock.get("stockImages"):
@@ -80,7 +82,7 @@ def _to_listing(stock: dict) -> CarListing | None:
         return CarListing(
             make=make, model=model, variant=variant, year=year,
             kms=kms, fuel=fuel, transmission=trans, color="",
-            location=city, price=price, image_url=image_url,
+            location=city, state=state, price=price, image_url=image_url,
             source_name=SOURCE, source_url=url,
         )
     except Exception as e:

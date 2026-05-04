@@ -13,6 +13,7 @@ import httpx
 from bs4 import BeautifulSoup
 from scrapers.base import CarListing
 from normalizer import parse_price, parse_kms, normalize
+from filters import CITY_STATE
 
 SOURCE = "9thgear"
 BASE   = "https://www.9thgear.co.in"
@@ -71,6 +72,8 @@ def _parse_card(card) -> CarListing | None:
         if not parsed.get("price_inr"):
             parsed["price_inr"] = price
 
+        loc   = "Bangalore"
+        state = CITY_STATE.get(loc.lower(), "Karnataka")
         return CarListing(
             make        = make,
             model       = model,
@@ -80,7 +83,8 @@ def _parse_card(card) -> CarListing | None:
             fuel        = parsed.get("fuel") or "Diesel",
             transmission= parsed.get("transmission") or "",
             color       = parsed.get("color") or "",
-            location    = "Bangalore",
+            location    = loc,
+            state       = state,
             price       = int(parsed.get("price_inr") or price or 0),
             image_url   = image_url,
             source_name = SOURCE,
