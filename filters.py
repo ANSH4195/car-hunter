@@ -10,6 +10,7 @@ TARGET: dict[str, list[str] | None] = {
     "skoda":         ["octavia"],
     "jeep":          ["compass"],
     "ford":          ["endeavour"],
+    "mitsubishi":    ["pajero sport"],
 }
 
 CITY_STATE: dict[str, str] = {

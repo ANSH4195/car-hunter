@@ -227,6 +227,7 @@ BRAND_LOGO_FILES = {
     "skoda": "skoda",
     "škoda": "skoda",
     "ford": "ford",
+    "mitsubishi": "mitsubishi",
 }
 
 def brand_logo_html(make: str) -> str:

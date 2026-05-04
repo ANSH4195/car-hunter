@@ -4,7 +4,7 @@ Personal used car alert system for Karnataka, India. Scrapes 7 Indian used car m
 
 ## What it does
 - Scrapes Cars24, Spinny, OLX, Carwale, Cardekho, TeamBHP, 9thgear daily via GitHub Actions (10 AM IST)
-- Targets: Audi (any), BMW (any), Mercedes-Benz (any), Volvo (any), Volkswagen (Tiguan), Skoda (Octavia), Jeep (Compass), Ford (Endeavour) — diesel, 2017+, <150k km, Karnataka cities
+- Targets: Audi (any), BMW (any), Mercedes-Benz (any), Volvo (any), Volkswagen (Tiguan), Skoda (Octavia), Jeep (Compass), Ford (Endeavour), Mitsubishi (Pajero Sport) — diesel, 2017+, <150k km, Karnataka cities
 - Deduplicates via SHA256 hash of make+model+variant+year+color+transmission+kms_bucket(±5k)
 - Stores in Supabase (Postgres); shows in Streamlit with soft-delete
 
@@ -50,7 +50,7 @@ streamlit run app.py   # UI at localhost:8501
 Maintain `CHANGELOG.md` in the repo root. Format: `## YYYY-MM-DD` header, bullet points. Only log significant changes (new features, bug fixes with user impact, schema changes) — not minor refactors or dependency bumps.
 
 ## Target Criteria (filters.py)
-- Makes/Models: Audi A3/Q3/Q5/Q7, VW Tiguan, Skoda Octavia, Jeep Compass
+- Makes/Models: Audi A3/Q3/Q5/Q7, VW Tiguan, Skoda Octavia, Jeep Compass, Mitsubishi Pajero Sport
 - Fuel: diesel only
 - Year: >= 2019
 - KMs: <= 150,000
