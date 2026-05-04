@@ -1,19 +1,15 @@
 """
 9thGear scraper — Bangalore luxury used cars.
-Card structure confirmed:
-  Container: div.main-car (inside div.col-lg-3.col-md-3.col-sm-6)
-  Title: h3 > a (ALL CAPS — converted with .title())
-  Price: span/text containing ₹
-  KMs: text containing km
-  Link: a[href] containing 'luxury-used-cars'
+Card text structure (pipe-delimited):
+  BADGE | YEAR | MAKE MODEL VARIANT | REG_NO | FUEL | KMS km | PRICE | View Car
 """
 from __future__ import annotations
-import re
 import httpx
 from bs4 import BeautifulSoup
 from scrapers.base import CarListing
-from normalizer import parse_price, parse_kms, normalize
+from normalizer import parse_price, parse_kms
 from filters import CITY_STATE
+import db
 
 SOURCE = "9thgear"
 BASE   = "https://www.9thgear.co.in"
@@ -22,21 +18,56 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
 }
 
-TARGET_MAKES = {"audi", "bmw", "mercedes-benz", "mercedes", "volkswagen", "vw", "skoda", "jeep", "ford", "volvo"}
+# (title prefix tokens) → (canonical make, number of tokens to consume)
+_MAKES = [
+    (("MERCEDES", "BENZ"), "Mercedes-Benz", 2),
+    (("VOLKSWAGEN",),      "Volkswagen",    1),
+    (("VOLVO",),           "Volvo",         1),
+    (("SKODA",),           "Skoda",         1),
+    (("AUDI",),            "Audi",          1),
+    (("BMW",),             "BMW",           1),
+    (("JEEP",),            "Jeep",          1),
+    (("FORD",),            "Ford",          1),
+]
+
+
+def _parse_title(title: str) -> tuple[str, str, str]:
+    """'MERCEDES BENZ GLC 220D 4MATIC' → ('Mercedes-Benz', 'Glc', '220D 4Matic')"""
+    words = title.upper().split()
+    for prefixes, make, n in _MAKES:
+        if tuple(words[:n]) == prefixes:
+            rest    = words[n:]
+            model   = rest[0].title() if rest else ""
+            variant = " ".join(w.title() for w in rest[1:])
+            return make, model, variant
+    return "", "", ""
 
 
 def _search_url(page: int = 1) -> str:
     return f"{BASE}/search?fuel=Diesel&page={page}"
 
 
+def _extract_url(card) -> str:
+    link_el = card.select_one("a[href*='luxury-used-cars']") or card.select_one("a")
+    href = link_el["href"] if link_el else ""
+    return href if href.startswith("http") else f"{BASE}{href}"
+
+
 def _parse_card(card) -> CarListing | None:
     try:
-        title_el = card.select_one("h3") or card.select_one("h2")
-        if not title_el:
+        parts = [p.strip() for p in card.get_text(" | ", strip=True).split(" | ")]
+        # BADGE | YEAR | TITLE | REG | FUEL | KMS | PRICE | View Car
+        if len(parts) < 7:
             return None
-        title = title_el.get_text(strip=True).title()  # 9thGear is ALL CAPS
 
-        if not any(m in title.lower() for m in TARGET_MAKES):
+        year  = int(parts[1]) if parts[1].isdigit() else 0
+        title = parts[2]
+        kms   = parse_kms(parts[5]) or 0
+        price = parse_price(parts[6]) or 0
+        fuel  = parts[4].strip() or "Diesel"
+
+        make, model, variant = _parse_title(title)
+        if not make or not model:
             return None
 
         link_el   = card.select_one("a[href*='luxury-used-cars']") or card.select_one("a")
@@ -49,46 +80,14 @@ def _parse_card(card) -> CarListing | None:
             src = img_el.get("src") or img_el.get("data-src") or ""
             image_url = src if src.startswith("http") else f"{BASE}{src}"
 
-        price_el  = card.select_one("span.posted_by")
-        price     = parse_price(price_el.get_text(strip=True)) if price_el else 0
-
-        km_el = card.find(string=re.compile(r"\d+\s*km", re.I))
-        kms   = parse_kms(str(km_el)) if km_el else 0
-
-        year_m = re.search(r"\b(20\d{2})\b", card.get_text())
-        year   = int(year_m.group(1)) if year_m else 0
-
-        parsed = normalize(title)
-        if not parsed:
-            return None
-
-        make    = parsed.get("make") or ""
-        model   = parsed.get("model") or ""
-        variant = parsed.get("variant") or ""
-        if not parsed.get("year"):
-            parsed["year"] = year
-        if not parsed.get("kms"):
-            parsed["kms"] = kms
-        if not parsed.get("price_inr"):
-            parsed["price_inr"] = price
-
         loc   = "Bangalore"
         state = CITY_STATE.get(loc.lower(), "Karnataka")
         return CarListing(
-            make        = make,
-            model       = model,
-            variant     = variant,
-            year        = int(parsed.get("year") or year or 0),
-            kms         = int(parsed.get("kms") or kms or 0),
-            fuel        = parsed.get("fuel") or "Diesel",
-            transmission= parsed.get("transmission") or "",
-            color       = parsed.get("color") or "",
-            location    = loc,
-            state       = state,
-            price       = int(parsed.get("price_inr") or price or 0),
-            image_url   = image_url,
-            source_name = SOURCE,
-            source_url  = url,
+            make=make, model=model, variant=variant,
+            year=year, kms=kms, fuel=fuel, transmission="",
+            color="", location=loc, state=state,
+            price=price, image_url=image_url,
+            source_name=SOURCE, source_url=url,
         )
     except Exception as e:
         print(f"[9thgear] card parse error: {e}")
@@ -96,6 +95,7 @@ def _parse_card(card) -> CarListing | None:
 
 
 def scrape() -> list[CarListing]:
+    seen_urls = db.fetch_source_urls(SOURCE)
     results: list[CarListing] = []
     with httpx.Client(headers=HEADERS, timeout=30, follow_redirects=True) as client:
         for page in range(1, 5):
@@ -109,6 +109,8 @@ def scrape() -> list[CarListing]:
                 if not cards:
                     break
                 for card in cards:
+                    if _extract_url(card) in seen_urls:
+                        continue
                     listing = _parse_card(card)
                     if listing:
                         results.append(listing)

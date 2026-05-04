@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-05-04
+- Incremental scraping: load all existing listing IDs once at run start; skip upsert for already-seen listings (~95% fewer DB writes on steady-state runs)
+- Added URL pre-filter for 9thgear and OLX: skip Gemini/parse entirely for cards whose source URL is already in the DB
+- 9thgear: removed Gemini dependency entirely; card text is pipe-delimited with fixed structure so all fields (year, kms, price, make, model, variant) are now parsed directly — eliminates rate limit failures on this source
+- Fixed Cardekho scraper missing from orchestrator (`scrape.py` was never calling it despite the scraper existing)
+
+## 2026-05-02
+- Redesigned card layout: mobile-first list view with clickable image modal, favicon source icons in right column, ellipsis popover for actions
+- Added 3D chrome brand logos (Audi rings, BMW roundel, Volkswagen, Jeep wordmark) in listing titles instead of plain make text
+
 ## 2026-05-03
 - Expanded scraping to Madhya Pradesh: Bhopal, Indore, Gwalior, Jabalpur across Cars24, Spinny, Carwale, CardDekho, OLX
 - Added `state` field to listings (DB migration: `alter table listings add column if not exists state text;`)

@@ -1,35 +1,6 @@
-"""
-Gemini Flash-Lite: parse messy listing text → structured fields.
-Only called when a scraper can't extract clean structured data itself.
-"""
+"""Regex helpers for parsing price and odometer strings from listing text."""
 from __future__ import annotations
-import json
-import os
 import re
-
-import google.generativeai as genai
-
-genai.configure(api_key=os.environ["GEMINI_API_KEY"])
-_model = genai.GenerativeModel("gemini-2.5-flash")
-
-_PROMPT = """Extract used car listing details from the text below.
-Return ONLY valid JSON with these keys (use null if unknown):
-{"make","model","variant","year","kms","fuel","transmission","color","location","price_inr"}
-
-Text:
-"""
-
-
-def normalize(raw_text: str) -> dict | None:
-    try:
-        resp = _model.generate_content(
-            _PROMPT + raw_text,
-            generation_config={"response_mime_type": "application/json"},
-        )
-        return json.loads(resp.text)
-    except Exception as e:
-        print(f"[normalizer] {e}")
-        return None
 
 
 def parse_price(text: str) -> int | None:

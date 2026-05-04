@@ -81,3 +81,18 @@ def fetch_active() -> list[dict]:
         .execute()
     )
     return result.data or []
+
+
+def fetch_all_ids() -> set[str]:
+    result = _get().table("listings").select("id").execute()
+    return {row["id"] for row in result.data or []}
+
+
+def fetch_source_urls(source_name: str) -> set[str]:
+    result = _get().table("listings").select("sources").execute()
+    urls: set[str] = set()
+    for row in result.data or []:
+        entry = (row.get("sources") or {}).get(source_name)
+        if entry and entry.get("url"):
+            urls.add(entry["url"])
+    return urls

@@ -17,6 +17,7 @@ from bs4 import BeautifulSoup
 from scrapers.base import CarListing
 from normalizer import parse_price, parse_kms
 from filters import MIN_YEAR, MAX_KMS, MAX_PRICE
+import db
 
 SOURCE = "olx"
 
@@ -49,6 +50,12 @@ def _listing_url(slug: str) -> str:
         f"%2Cprice_max_{MAX_PRICE}"
         f"%2Cyear_between_{MIN_YEAR - 1}_to_{current_year}"
     )
+
+
+def _extract_url(card) -> str:
+    link_el = card.select_one("a[href]")
+    href = link_el["href"] if link_el else ""
+    return href if href.startswith("http") else f"https://www.olx.in{href}"
 
 
 def _parse_card(card) -> CarListing | None:
@@ -119,6 +126,7 @@ async def _fetch_rendered(url: str) -> str:
 
 
 def scrape() -> list[CarListing]:
+    seen_urls = db.fetch_source_urls(SOURCE)
     results: list[CarListing] = []
     for cfg in STATE_CONFIGS:
         url = _listing_url(cfg["slug"])
@@ -130,6 +138,8 @@ def scrape() -> list[CarListing]:
                 print(f"[olx] no cards found for {cfg['state']}")
                 continue
             for card in cards:
+                if _extract_url(card) in seen_urls:
+                    continue
                 listing = _parse_card(card)
                 if listing:
                     listing.state    = cfg["state"]
