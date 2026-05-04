@@ -57,6 +57,10 @@ Maintain `CHANGELOG.md` in the repo root. Format: `## YYYY-MM-DD` header, bullet
 - Special: Jeep Compass pre-2022 must be "Limited Plus" variant
 - Cities: Bangalore, Mysore, Mangalore, Hubli
 
+## Tooling Preferences
+- Use `gh` (GitHub CLI) for all GitHub operations (PRs, issues, releases) — not raw `git` API calls or curl
+- Use `pnpm` over `npm` or `yarn` for any JS/Node package management
+
 ## graphify
 
 This project has a graphify knowledge graph at graphify-out/.
