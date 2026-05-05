@@ -3,7 +3,7 @@ import streamlit.components.v1 as components
 from datetime import datetime
 import db
 
-st.set_page_config(page_title="Car Hunter", layout="centered", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="Car Hunter", layout="wide", initial_sidebar_state="collapsed")
 
 st.title("Car Hunter")
 
@@ -73,16 +73,27 @@ components.html("""
 # ── styles ─────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
+.car-grid {
+  display:grid;
+  grid-template-columns:1fr;
+  gap:0;
+}
+@media (min-width:768px) {
+  .car-grid {
+    grid-template-columns:1fr 1fr;
+    gap:0 20px;
+  }
+}
 .car-card {
   display:flex;align-items:center;gap:10px;padding:10px 0;
   border-bottom:1px solid #2a2a2a;
 }
 .car-thumb {
-  width:88px;height:64px;object-fit:cover;border-radius:6px;
+  width:110px;height:80px;object-fit:cover;border-radius:6px;
   cursor:pointer;flex-shrink:0;
 }
 .car-thumb-placeholder {
-  width:88px;height:64px;border-radius:6px;flex-shrink:0;
+  width:110px;height:80px;border-radius:6px;flex-shrink:0;
   background:#222;display:flex;align-items:center;justify-content:center;
   color:#555;font-size:10px;
 }
@@ -248,7 +259,7 @@ def trans_abbr(t: str) -> str:
 st.caption(f"{len(rows)} listing{'s' if len(rows) != 1 else ''} found")
 
 # ── listings ───────────────────────────────────────────────────────────────
-for row in rows:
+def _card_html(row: dict) -> str:
     lid     = row["id"]
     img     = row.get("image_url") or ""
     year    = row.get("year") or ""
@@ -287,7 +298,7 @@ for row in rows:
                 f'style="font-size:10px;color:#aaa">{src}</a>'
             )
 
-    st.markdown(f"""
+    return f"""
 <div class="car-card">
   {img_html}
   <div class="car-info">
@@ -306,8 +317,10 @@ for row in rows:
       </div>
     </details>
   </div>
-</div>
-""", unsafe_allow_html=True)
+</div>"""
 
-if not rows:
+if rows:
+    cards_html = "".join(_card_html(r) for r in rows)
+    st.markdown(f'<div class="car-grid">{cards_html}</div>', unsafe_allow_html=True)
+else:
     st.info("No listings match your filters.")
