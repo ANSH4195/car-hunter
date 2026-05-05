@@ -73,14 +73,12 @@ components.html("""
 # ── styles ─────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-/* constrain layout to 768px, centred, no X overflow on mobile */
-[data-testid="stAppViewContainer"] > .main .block-container {
-  max-width:768px;
-  margin-left:auto;
-  margin-right:auto;
-  padding-left:12px;
-  padding-right:12px;
-  overflow-x:hidden;
+/* constrain layout width and prevent horizontal scroll */
+[data-testid="stMain"] { overflow-x:hidden; }
+[data-testid="stMainBlockContainer"] {
+  max-width:768px !important;
+  padding-left:12px !important;
+  padding-right:12px !important;
 }
 .car-grid {
   display:grid;
@@ -96,6 +94,7 @@ st.markdown("""
 .car-card {
   display:flex;align-items:center;gap:10px;padding:10px 0;
   border-bottom:1px solid #2a2a2a;
+  min-width:0;overflow:hidden;
 }
 .car-thumb {
   width:110px;height:80px;object-fit:cover;border-radius:6px;
