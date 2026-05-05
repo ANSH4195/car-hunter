@@ -73,6 +73,15 @@ components.html("""
 # ── styles ─────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
+/* constrain layout to 768px, centred, no X overflow on mobile */
+[data-testid="stAppViewContainer"] > .main .block-container {
+  max-width:768px;
+  margin-left:auto;
+  margin-right:auto;
+  padding-left:12px;
+  padding-right:12px;
+  overflow-x:hidden;
+}
 .car-grid {
   display:grid;
   grid-template-columns:1fr;
