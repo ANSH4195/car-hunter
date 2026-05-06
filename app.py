@@ -183,7 +183,7 @@ with st.sidebar:
     model_filter  = st.multiselect("Model", all_models)
     year_min, year_max = st.slider("Year", year_lo, year_hi, (year_lo, year_hi))
     price_max = st.number_input("Max Price (₹)", value=2_500_000, step=500_000, format="%d")
-    kms_max   = st.number_input("Max KMs", value=150_000, step=10_000, format="%d")
+    kms_max   = st.number_input("Max KMs", value=110_000, step=10_000, format="%d")
     trans_filter = st.multiselect("Transmission", ["Automatic", "Manual"])
     sort_by = st.selectbox("Sort by", ["Price ↑", "Price ↓", "Year ↓", "KMs ↑", "Newest first"], index=4)
     st.divider()
