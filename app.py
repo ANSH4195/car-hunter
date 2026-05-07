@@ -94,7 +94,7 @@ st.markdown("""
 .car-card {
   display:flex;align-items:center;gap:10px;padding:10px 0;
   border-bottom:1px solid #2a2a2a;
-  min-width:0;overflow:hidden;
+  min-width:0;
 }
 .car-thumb {
   width:110px;height:80px;object-fit:cover;border-radius:6px;
@@ -142,7 +142,7 @@ details.actions-menu > summary::marker { content:""; }
 details.actions-menu > summary:hover { color:#ccc; }
 details.actions-menu[open] > summary { color:#ccc; }
 .actions-pop {
-  position:absolute;right:0;top:100%;z-index:10;
+  position:absolute;right:0;top:100%;z-index:1000;
   background:#1a1a1a;border:1px solid #333;border-radius:6px;
   min-width:140px;padding:4px 0;box-shadow:0 4px 12px rgba(0,0,0,0.5);
   margin-top:4px;
