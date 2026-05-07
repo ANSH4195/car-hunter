@@ -118,7 +118,7 @@ def _parse_card(card) -> CarListing | None:
 
 async def _fetch_rendered(url: str) -> str:
     from crawl4ai import AsyncWebCrawler, CrawlerRunConfig
-    config = CrawlerRunConfig(page_timeout=40000, delay_before_return_html=4.0)
+    config = CrawlerRunConfig(page_timeout=40000, delay_before_return_html=4.0, simulate_user=True, magic=True)
     async with AsyncWebCrawler() as crawler:
         result = await crawler.arun(url=url, config=config)
         return result.html or ""

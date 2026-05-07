@@ -64,7 +64,7 @@ def _parse_card(card) -> CarListing | None:
         price_el    = card.select_one('[data-aut-id="itemPrice"]')
         subtitle_el = card.select_one('[data-aut-id="itemSubTitle"]')
         link_el     = card.select_one("a[href]")
-        img_el      = card.select_one("img")
+        img_el      = card.select_one('[data-aut-id="itemImage"] img')
 
         if not title_el:
             return None
@@ -100,7 +100,19 @@ def _parse_card(card) -> CarListing | None:
 
         image_url = ""
         if img_el:
-            image_url = img_el.get("src") or img_el.get("data-src") or ""
+            # Prefer a 300w or 400w srcset entry over the tiny 150px src thumbnail
+            srcset = img_el.get("srcset", "")
+            if srcset:
+                for entry in srcset.split(","):
+                    parts = entry.strip().split()
+                    if len(parts) == 2 and parts[1] in ("300w", "400w"):
+                        image_url = parts[0]
+                        break
+            if not image_url:
+                image_url = img_el.get("src") or img_el.get("data-src") or ""
+            # Drop non-photo assets (inspection badges, logos)
+            if "statics.olx.in" in image_url:
+                image_url = ""
 
         if not all([make, model, year, price]):
             return None

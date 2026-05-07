@@ -134,19 +134,44 @@ def _parse_row(row) -> CarListing | None:
         return None
 
 
+async def _fetch_crawl4ai(url: str) -> str:
+    from crawl4ai import AsyncWebCrawler, CrawlerRunConfig
+    config = CrawlerRunConfig(page_timeout=30000, simulate_user=True, magic=True)
+    async with AsyncWebCrawler() as crawler:
+        result = await crawler.arun(url=url, config=config)
+        return result.html or ""
+
+
+def _scrape_page_html(html: str) -> list[CarListing]:
+    soup = BeautifulSoup(html, "html.parser")
+    return [r for r in soup.find_all("tr") if r.find(class_="sr_info")]
+
+
 def scrape() -> list[CarListing]:
+    import asyncio
     results: list[CarListing] = []
     seen_urls: set[str] = set()
+    use_crawl4ai = False
+
     with httpx.Client(headers=HEADERS, timeout=25, follow_redirects=True) as client:
         for page in range(1, 10):
-            url = _search_url(page) if page == 1 else f"{BASE}/search_results/?restore=1&page={page}"
+            url = _search_url(page) if (page == 1 or use_crawl4ai) else f"{BASE}/search_results/?restore=1&page={page}"
             try:
-                resp = client.get(url)
-                if resp.status_code != 200:
-                    print(f"[teambhp] page {page} → {resp.status_code}")
-                    break
-                soup = BeautifulSoup(resp.text, "html.parser")
-                rows = [r for r in soup.find_all("tr") if r.find(class_="sr_info")]
+                if use_crawl4ai:
+                    html = asyncio.run(_fetch_crawl4ai(url))
+                else:
+                    resp = client.get(url)
+                    if resp.status_code == 403:
+                        print(f"[teambhp] page {page} → 403, retrying with crawl4ai")
+                        use_crawl4ai = True
+                        html = asyncio.run(_fetch_crawl4ai(_search_url(page)))
+                    elif resp.status_code != 200:
+                        print(f"[teambhp] page {page} → {resp.status_code}")
+                        break
+                    else:
+                        html = resp.text
+
+                rows = _scrape_page_html(html)
                 if not rows:
                     break
                 new_this_page = 0
@@ -157,7 +182,7 @@ def scrape() -> list[CarListing]:
                         results.append(listing)
                         new_this_page += 1
                 if new_this_page == 0:
-                    break  # no new listings — end of results
+                    break
             except Exception as e:
                 print(f"[teambhp] error page {page}: {e}")
                 break
