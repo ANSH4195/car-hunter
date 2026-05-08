@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-05-08
+- Cars24: rewrote scraper from crawl4ai+Playwright to pure httpx; Next.js RSC endpoint (`RSC: 1` header) returns all listing JSON server-side — eliminates Azure IP bot-block that caused 0 results on GitHub Actions
+- Spinny: rewrote scraper from crawl4ai+Playwright to direct REST API (`api.spinny.com/v3/api/listing/v6/`); luxury brands via `car_category=luxury`, non-luxury targets via explicit make+model params — also bypasses bot-block on Actions
+
 ## 2026-05-04 (3)
 - TeamBHP: added Mitsubishi Pajero Sport model ID (2812) — previously zero listings captured from this source; fixed multi-word model name parsing so "Pajero Sport" is stored correctly; total listings per run increased from ~20 to ~52
 - TeamBHP pagination confirmed working: `restore=1` session replay is necessary (full URL ignores `page=N` and always returns page 1); pagination kept as-is

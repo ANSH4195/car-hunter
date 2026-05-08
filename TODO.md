@@ -15,13 +15,9 @@
   - Wire up: add import + `("precarmart", precarmart.scrape)` to `scrape.py` SCRAPERS list
 - **F2** UX: Add last fetched date
 - **B1** Stale source links — due to deduplication, images may be updating but source links aren't; investigate and fix
-- **B3** Cars24, Spinny, TeamBHP return 0 cards on GitHub Actions (Azure IPs)
-  - All three scrapers work locally but fail on every scheduled/dispatched run since at least 2026-05-03
-  - Cars24/Spinny use crawl4ai + Playwright (`[class*="carCardWrapper"]` / `.CarListingCardV2__carListingCardV2Root`); locally both selectors find 3+ cards, Actions finds 0 — page likely renders a captcha/geo-block for Azure IPs
-  - TeamBHP httpx returns 403; crawl4ai fallback added (commit d4b0a32) but also gets blocked — fetches in <1s with no JS rendering on Actions
-  - DB still has 10 Cars24, 5 Spinny, 3 TeamBHP listings from earlier runs when scrapers worked
-  - Attempted: `simulate_user=True, magic=True` on crawl4ai — no effect (crawl4ai 0.4.247 pinned in requirements-scrape.txt; >=0.8.0 conflicts with streamlit==1.35.0 over pillow)
-  - Next steps to try: (a) residential/datacenter proxy for GitHub Actions, (b) self-hosted runner on a non-cloud IP, (c) check if Cars24/Spinny expose a JSON API endpoint that bypasses the bot check
+- **B3b** TeamBHP returns 403 on GitHub Actions (Azure IPs)
+  - httpx → 403; crawl4ai fallback also blocked in <1s — pure IP-level block, no workaround without non-Azure IP
+  - Options: (a) self-hosted runner, (b) residential proxy passed to httpx
 ---
 
 ## Planned
@@ -29,6 +25,15 @@
 ---
 
 ## Implemented
+
+---
+
+## Implemented
+
+- **B3a** Cars24 + Spinny — rewrote both scrapers to pure httpx (no crawl4ai/Playwright):
+  - Cars24: Next.js RSC endpoint (`RSC: 1` header) returns full listing JSON; `_extract_content()` finds the `content` array via `json.JSONDecoder.raw_decode`; supports `searchAfter` cursor pagination
+  - Spinny: `api.spinny.com/v3/api/listing/v6/` REST API; luxury brands via `car_category=luxury`, non-luxury targets (VW/Skoda/Ford/Mitsubishi) via explicit `make=`+`model=` params
+  - Confirmed locally: Cars24 → 24 listings, Spinny → 32 listings
 
 ---
 

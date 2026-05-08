@@ -1,28 +1,29 @@
 """
-Cars24 scraper — Bangalore, diesel, target makes.
-Cars24 uses Next.js App Router (RSC); car data is client-side rendered.
-We use crawl4ai to render, then parse card DOM.
-Card structure (confirmed):
-  Wrapper:     a[class*="carCardWrapper"][href]   → full listing URL
-  Image:       img.shrinkOnTouch[src, alt]        → alt = "2018 Skoda Kodiaq - SUV - Diesel - Automatic - ₹18.33 lakh"
-  KMs:         card text regex for "X,XX,XXX km"
-  Variant:     card text, item between model name and km string
-  Location:    last item in card text
-Filter URL uses Cars24's f= syntax:
-  make:=:audi   → exact make match (blanket — all models)
-  ;model:in:m1  → restrict previous make to these models
+Cars24 scraper — RSC (React Server Components) payload parsing.
+Cars24 uses Next.js App Router; fetching with `RSC: 1` header returns the
+full listing data as JSON embedded in the RSC wire format — no Playwright needed.
+Listing JSON fields: appointmentId, make, model, variant, year, listingPrice,
+  odometer.value, transmissionType.value, fuelType, color, listingImage.uri,
+  cdpRelativeUrl, address.locality, searchAfter (pagination cursor).
 """
 from __future__ import annotations
-import asyncio
 import datetime
+import json
 import re
-from bs4 import BeautifulSoup
+import time
+import httpx
 from scrapers.base import CarListing
-from normalizer import parse_price, parse_kms
 from filters import MIN_YEAR, MAX_PRICE
 
 SOURCE = "cars24"
 BASE   = "https://www.cars24.com"
+
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Accept": "text/x-component,*/*",
+    "RSC": "1",
+    "Referer": "https://www.cars24.com/",
+}
 
 CITY_CONFIGS = [
     {"slug": "bangalore", "city_id": "4709", "state": "Karnataka"},
@@ -37,10 +38,11 @@ MAKE_NORM = {
     "mercedes": "Mercedes-Benz", "mercedes benz": "Mercedes-Benz", "mercedes-benz": "Mercedes-Benz",
     "volkswagen": "Volkswagen", "vw": "Volkswagen",
     "skoda": "Skoda", "jeep": "Jeep", "ford": "Ford", "volvo": "Volvo",
+    "mitsubishi": "Mitsubishi",
 }
 
 
-def _listing_url(city_slug: str, city_id: str) -> str:
+def _listing_url(city_slug: str, city_id: str, search_after: str = "") -> str:
     current_year = datetime.date.today().year
     make_f = (
         "make%3A%3D%3Aaudi"
@@ -51,125 +53,118 @@ def _listing_url(city_slug: str, city_id: str) -> str:
         "%3AOR%3Amake%3A%3D%3Avolkswagen%3Bmodel%3Ain%3Atiguan"
         "%3AOR%3Amake%3A%3D%3Aford%3Bmodel%3Ain%3Aendeavour"
         "%3AOR%3Amake%3A%3D%3Askoda%3Bmodel%3Ain%3Akodiaq%2Coctavia"
+        "%3AOR%3Amake%3A%3D%3Amitsubishi%3Bmodel%3Ain%3Apajero+sport"
     )
-    return (
+    url = (
         f"{BASE}/buy-used-diesel-cars-{city_slug}/?"
         f"f=listingPrice%3Abw%3A50000%2C{MAX_PRICE}"
         f"&f={make_f}"
         f"&f=year%3Abw%3A{MIN_YEAR}%2C{current_year}"
-        f"&f=odometer%3Abw%3A0%2C1000000"
+        f"&f=odometer%3Abw%3A0%2C110000"
         f"&sort=bestmatch&storeCityId={city_id}"
     )
+    if search_after:
+        from urllib.parse import quote
+        url += f"&searchAfter={quote(search_after)}"
+    return url
 
 
-def _parse_card(card) -> CarListing | None:
+def _extract_content(text: str) -> tuple[list[dict], str]:
+    """Find the listings array in the RSC wire-format payload."""
+    decoder = json.JSONDecoder()
+    search_from = 0
+    while True:
+        idx = text.find('"content":[', search_from)
+        if idx == -1:
+            break
+        arr_start = idx + len('"content":')
+        try:
+            arr, arr_end = decoder.raw_decode(text, arr_start)
+        except (json.JSONDecodeError, ValueError):
+            search_from = idx + 1
+            continue
+        if not isinstance(arr, list) or not arr:
+            search_from = idx + 1
+            continue
+        if isinstance(arr[0], dict) and "appointmentId" in arr[0]:
+            cursor_m = re.search(r'"searchAfter":"([^"]+)"', text[arr_end:arr_end + 300])
+            cursor = cursor_m.group(1) if cursor_m else ""
+            return arr, cursor
+        search_from = idx + 1
+    return [], ""
+
+
+def _parse_listing(item: dict, state: str) -> CarListing | None:
     try:
-        # URL
-        href = card.get("href", "")
-        url  = href if href.startswith("http") else f"{BASE}{href}"
+        make_raw = (item.get("make") or "").lower().strip()
+        make     = MAKE_NORM.get(make_raw, make_raw.title())
+        model    = (item.get("model") or "").strip()
+        variant  = (item.get("variant") or "").strip()
+        year     = int(item.get("year") or 0)
+        price    = int(item.get("listingPrice") or 0)
 
-        # Image + rich alt text: "2018 Skoda Kodiaq - SUV - Diesel - Automatic - ₹18.33 lakh"
-        img_el    = card.select_one("img.shrinkOnTouch") or card.select_one("img")
-        img_src   = ""
-        alt_text  = ""
-        if img_el:
-            img_src  = img_el.get("src") or ""
-            alt_text = img_el.get("alt") or ""
+        odo = item.get("odometer") or {}
+        kms = int(odo.get("value") or 0) if isinstance(odo, dict) else 0
 
-        # Parse year, make, model from alt or card text
-        card_text = card.get_text(separator=" | ", strip=True)
+        fuel      = (item.get("fuelType") or "Diesel").strip()
+        trans_obj = item.get("transmissionType") or {}
+        trans     = (trans_obj.get("value") or "").strip() if isinstance(trans_obj, dict) else ""
+        color     = (item.get("color") or "").strip().title()
 
-        # Year: first 4-digit number in card text
-        year_m = re.search(r"\b(20\d{2})\b", card_text)
-        year   = int(year_m.group(1)) if year_m else 0
+        img_obj = item.get("listingImage") or {}
+        img_src = (img_obj.get("uri") or "") if isinstance(img_obj, dict) else ""
 
-        # Make + model: "2018 Skoda Kodiaq" → make="Skoda", model="Kodiaq"
-        make_model_m = re.search(r"\b20\d{2}\s+(\w[\w-]*(?:\s+\w[\w-]*)?)\b", card_text)
-        make  = ""
-        model = ""
-        if make_model_m:
-            parts = make_model_m.group(1).split()
-            make_raw = parts[0].lower()
-            make  = MAKE_NORM.get(make_raw, parts[0].title())
-            model = parts[1] if len(parts) > 1 else ""
+        rel_url = item.get("cdpRelativeUrl") or ""
+        url     = f"{BASE}/{rel_url.lstrip('/')}" if rel_url else ""
 
-        # Variant: from card text between model name and km line
-        # e.g. "2018 Skoda Kodiaq | STYLE 2.0 TDI 4X4 AT | 1,14,645 km"
-        variant = ""
-        items = [p.strip() for p in card_text.split("|")]
-        for i, item in enumerate(items):
-            if re.search(r"\b20\d{2}\b", item) and i + 1 < len(items):
-                candidate = items[i + 1].strip()
-                if not re.search(r"km|diesel|auto|manual|petrol|₹|emi", candidate, re.I):
-                    variant = candidate
-
-        # KMs: "1,14,645 km" or "50,000 km"
-        km_m = re.search(r"([\d,]+)\s*km", card_text, re.I)
-        kms  = parse_kms(km_m.group(0)) if km_m else 0
-
-        # Fuel + transmission from alt text or card text
-        fuel  = "Diesel"
-        trans = ""
-        if "automatic" in (alt_text + card_text).lower() or " auto" in card_text.lower():
-            trans = "Automatic"
-        elif "manual" in (alt_text + card_text).lower():
-            trans = "Manual"
-
-        # Price: prefer "₹XX.XX lakh" (actual price, not EMI/MRP)
-        price_m = re.search(r"₹\s*([\d.]+)\s*lakh", card_text, re.I)
-        if price_m:
-            price = int(float(price_m.group(1)) * 100_000)
-        else:
-            price_m2 = re.search(r"₹\s*([\d.]+)L\b", card_text)
-            price = int(float(price_m2.group(1)) * 100_000) if price_m2 else 0
-
-        # Location: last non-junk item in card text
-        location = "Bangalore"
-        for item in reversed(items):
-            item = item.strip()
-            if item and not re.search(r"₹|EMI|charges|stock|owned|wishlist|verified", item, re.I):
-                if len(item) > 4:
-                    location = item
-                    break
+        addr     = item.get("address") or {}
+        location = (addr.get("locality") or addr.get("city") or "Bangalore").strip()
 
         if not all([make, model, year, price]):
             return None
 
         return CarListing(
             make=make, model=model, variant=variant, year=year,
-            kms=kms, fuel=fuel, transmission=trans, color="",
-            location=location, state="", price=price, image_url=img_src,
-            source_name=SOURCE, source_url=url,
+            kms=kms, fuel=fuel, transmission=trans, color=color,
+            location=location, state=state, price=price,
+            image_url=img_src, source_name=SOURCE, source_url=url,
         )
     except Exception as e:
-        print(f"[cars24] card parse error: {e}")
+        print(f"[cars24] parse error: {e}")
         return None
-
-
-async def _fetch_rendered(url: str) -> str:
-    from crawl4ai import AsyncWebCrawler, CrawlerRunConfig
-    config = CrawlerRunConfig(page_timeout=40000, delay_before_return_html=5.0, simulate_user=True, magic=True)
-    async with AsyncWebCrawler() as crawler:
-        result = await crawler.arun(url=url, config=config)
-        return result.html or ""
 
 
 def scrape() -> list[CarListing]:
     results: list[CarListing] = []
-    for cfg in CITY_CONFIGS:
-        url = _listing_url(cfg["slug"], cfg["city_id"])
-        try:
-            html  = asyncio.run(_fetch_rendered(url))
-            soup  = BeautifulSoup(html, "html.parser")
-            cards = soup.select('[class*="carCardWrapper"]')
-            if not cards:
-                print(f"[cars24] no cards found for {cfg['slug']}")
-                continue
-            for card in cards:
-                listing = _parse_card(card)
-                if listing:
-                    listing.state = cfg["state"]
-                    results.append(listing)
-        except Exception as e:
-            print(f"[cars24] error ({cfg['slug']}): {e}")
+    seen_urls: set[str] = set()
+
+    with httpx.Client(headers=HEADERS, timeout=30, follow_redirects=True) as client:
+        for cfg in CITY_CONFIGS:
+            search_after = ""
+            for page_num in range(1, 6):
+                url = _listing_url(cfg["slug"], cfg["city_id"], search_after)
+                try:
+                    resp = client.get(url)
+                    if resp.status_code != 200:
+                        print(f"[cars24] {cfg['slug']} page {page_num}: HTTP {resp.status_code}")
+                        break
+                    items, next_cursor = _extract_content(resp.text)
+                    if not items:
+                        print(f"[cars24] {cfg['slug']} page {page_num}: no listings in RSC payload")
+                        break
+                    new_this_page = 0
+                    for item in items:
+                        listing = _parse_listing(item, cfg["state"])
+                        if listing and listing.source_url and listing.source_url not in seen_urls:
+                            seen_urls.add(listing.source_url)
+                            results.append(listing)
+                            new_this_page += 1
+                    if not next_cursor or new_this_page == 0:
+                        break
+                    search_after = next_cursor
+                    time.sleep(0.5)
+                except Exception as e:
+                    print(f"[cars24] error ({cfg['slug']} page {page_num}): {e}")
+                    break
+
     return results

@@ -1,153 +1,141 @@
 """
-Spinny scraper — Bengaluru diesel listings via crawl4ai.
-Spinny is a client-side React app; we render with Playwright via crawl4ai.
-Card structure (confirmed):
-  Container: .CarListingCardV2__carListingCardV2Root
-  Make/Year: span.ListingBrandModelDetail__make  → "2017 Mercedes CLA"
-  Variant:   .ListingPricingDetail__variant       → "200 CDI Sport"
-  Price:     [data-price]                         → "1899920" (INR)
-  Link:      a.ListingBrandModelDetail__makeModelLink[href]
-  Image:     img.ListingCarImage__productImage[src or data-src]
-  KMs/trans: parsed from card text (e.g. "50.5K km ... automatic")
-  Location:  .CarListingCardDetail__otherDetails
+Spinny scraper — direct REST API (no Playwright/crawl4ai needed).
+API: https://api.spinny.com/v3/api/listing/v6/
+- Luxury brands (Audi, BMW, Mercedes-Benz, Volvo, Jeep): car_category=luxury
+- Non-luxury targets (VW Tiguan, Skoda Octavia, Ford Endeavour, Mitsubishi): make= + model= params
+Response fields: id, make, model, variant, make_year, price, mileage, fuel_type,
+  transmission, color, city, permanent_url, images[0].file.absurl
 """
 from __future__ import annotations
-import asyncio
-import json
-import re
-from urllib.parse import quote
-from bs4 import BeautifulSoup
+import time
+import httpx
 from scrapers.base import CarListing
-from normalizer import parse_kms
-from filters import MIN_YEAR, MAX_KMS, MAX_PRICE
 
 SOURCE = "spinny"
 BASE   = "https://www.spinny.com"
+API    = "https://api.spinny.com/v3/api/listing/v6/"
 
-# Spinny city slugs (verify MP cities at spinny.com — not all cities are served).
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Origin": "https://www.spinny.com",
+    "Referer": "https://www.spinny.com/",
+    "Accept": "application/json",
+}
+
 CITY_CONFIGS = [
     {"slug": "bangalore", "state": "Karnataka"},
     {"slug": "bhopal",    "state": "Madhya Pradesh"},
     {"slug": "indore",    "state": "Madhya Pradesh"},
 ]
 
+# Non-luxury targets; luxury brands (Audi/BMW/Mercedes/Volvo) use car_category=luxury
+NON_LUXURY_TARGETS = [
+    {"make": "volkswagen", "model": "tiguan"},
+    {"make": "skoda",      "model": "octavia"},
+    {"make": "ford",       "model": "endeavour"},
+    {"make": "mitsubishi", "model": "pajero-sport"},
+]
+
 MAKE_NORM = {
-    "audi": "Audi",
-    "bmw": "BMW",
-    "mercedes": "Mercedes-Benz",
-    "mercedes-benz": "Mercedes-Benz",
-    "volkswagen": "Volkswagen",
-    "vw": "Volkswagen",
-    "skoda": "Skoda",
-    "jeep": "Jeep",
-    "ford": "Ford",
-    "volvo": "Volvo",
+    "audi": "Audi", "bmw": "BMW",
+    "mercedes-benz": "Mercedes-Benz", "mercedes benz": "Mercedes-Benz",
+    "volkswagen": "Volkswagen", "skoda": "Skoda", "jeep": "Jeep",
+    "ford": "Ford", "volvo": "Volvo", "mitsubishi": "Mitsubishi",
 }
 
 
-def _listing_url(city_slug: str, page: int = 1) -> str:
-    filter_obj: dict = {
-        "fuel_type": ["diesel"],
-        "make": ["audi", "bmw", "jeep", "mercedes-benz", "volvo"],
-        "max_mileage": [str(MAX_KMS)],
-        "max_price": [MAX_PRICE],
-        "min_year": [str(MIN_YEAR)],
-        "model": ["endeavour", "octavia", "tiguan", "tiguan-allspace"],
-    }
-    if page > 1:
-        filter_obj["page"] = [str(page)]
-    return f"{BASE}/used-cars-in-{city_slug}/s/?filterObject={quote(json.dumps(filter_obj))}"
-
-
-def _parse_card(card) -> CarListing | None:
+def _parse_listing(item: dict, state: str) -> CarListing | None:
     try:
-        link_el    = card.select_one("a.ListingBrandModelDetail__makeModelLink")
-        make_el    = card.select_one("span.ListingBrandModelDetail__make")
-        variant_el = card.select_one(".ListingPricingDetail__variant")
-        price_el   = card.select_one("[data-price]")
-        img_el     = card.select_one("img.ListingCarImage__productImage")
-        other_el   = card.select_one(".CarListingCardDetail__otherDetails")
-
-        if not make_el:
-            return None
-
-        # "2017 Mercedes CLA" → year=2017, make="Mercedes-Benz", model="CLA"
-        parts    = make_el.get_text(strip=True).split()
-        year     = int(parts[0]) if parts and parts[0].isdigit() else 0
-        make_raw = parts[1].lower() if len(parts) > 1 else ""
+        make_raw = (item.get("make") or "").lower().strip()
         make     = MAKE_NORM.get(make_raw, make_raw.title())
-        model    = parts[2] if len(parts) > 2 else ""
+        model    = (item.get("model") or "").strip()
+        variant  = (item.get("variant") or "").strip()
+        year     = int(item.get("make_year") or 0)
+        price    = int(float(item.get("price") or 0))
+        kms      = int(item.get("mileage") or 0)
+        fuel     = (item.get("fuel_type") or "diesel").strip()
+        trans    = (item.get("transmission") or "").strip().title()
+        color    = (item.get("color") or "").strip().title()
+        city     = (item.get("city") or "").strip()
 
-        variant = variant_el.get_text(strip=True) if variant_el else ""
-        price   = int(price_el.get("data-price") or 0) if price_el else 0
+        perm_url = item.get("permanent_url") or ""
+        url = f"{BASE}{perm_url}" if perm_url.startswith("/") else perm_url
 
-        href = link_el["href"] if link_el else ""
-        url  = href if href.startswith("http") else f"{BASE}{href}"
-
+        images  = item.get("images") or []
         img_src = ""
-        if img_el:
-            img_src = img_el.get("src") or img_el.get("data-src") or ""
-            if img_src and img_src.startswith("//"):
-                img_src = "https:" + img_src
-
-        location = other_el.get_text(strip=True) if other_el else "Bangalore"
-
-        card_text = card.get_text(separator=" ", strip=True)
-        km_m = re.search(r"([\d,.]+\s*[Kk]?\s*km)", card_text)
-        kms  = parse_kms(km_m.group(1)) if km_m else 0
-
-        trans = ""
-        if "automatic" in card_text.lower():
-            trans = "Automatic"
-        elif "manual" in card_text.lower():
-            trans = "Manual"
+        if images and isinstance(images[0], dict):
+            file_obj = images[0].get("file") or {}
+            raw = file_obj.get("absurl") or ""
+            img_src = ("https:" + raw) if raw.startswith("//") else raw
 
         if not all([make, model, year, price]):
             return None
 
         return CarListing(
             make=make, model=model, variant=variant, year=year,
-            kms=kms, fuel="Diesel", transmission=trans, color="",
-            location=location, state="", price=price, image_url=img_src,
-            source_name=SOURCE, source_url=url,
+            kms=kms, fuel=fuel, transmission=trans, color=color,
+            location=city or "Bangalore", state=state, price=price,
+            image_url=img_src, source_name=SOURCE, source_url=url,
         )
     except Exception as e:
-        print(f"[spinny] card parse error: {e}")
+        print(f"[spinny] parse error: {e}")
         return None
 
 
-async def _fetch_rendered(url: str) -> str:
-    from crawl4ai import AsyncWebCrawler, CrawlerRunConfig
-    config = CrawlerRunConfig(page_timeout=40000, delay_before_return_html=4.0, simulate_user=True, magic=True)
-    async with AsyncWebCrawler() as crawler:
-        result = await crawler.arun(url=url, config=config)
-        return result.html or ""
+def _fetch_pages(client: httpx.Client, params: dict, state: str) -> list[CarListing]:
+    results: list[CarListing] = []
+    seen_urls: set[str] = set()
+    for page in range(1, 6):
+        try:
+            resp = client.get(API, params={**params, "page": page, "page_size": 20})
+            if resp.status_code != 200:
+                print(f"[spinny] HTTP {resp.status_code} — {params}")
+                break
+            data  = resp.json()
+            items = data.get("results") or []
+            if not items:
+                break
+            new_this_page = 0
+            for item in items:
+                listing = _parse_listing(item, state)
+                if listing and listing.source_url not in seen_urls:
+                    seen_urls.add(listing.source_url)
+                    results.append(listing)
+                    new_this_page += 1
+            if new_this_page == 0 or not data.get("next"):
+                break
+            time.sleep(0.5)
+        except Exception as e:
+            print(f"[spinny] error (page {page}, {params}): {e}")
+            break
+    return results
 
 
 def scrape() -> list[CarListing]:
     results: list[CarListing] = []
     seen_urls: set[str] = set()
-    for cfg in CITY_CONFIGS:
-        for page in range(1, 5):
-            url = _listing_url(cfg["slug"], page)
-            try:
-                html  = asyncio.run(_fetch_rendered(url))
-                soup  = BeautifulSoup(html, "html.parser")
-                cards = soup.select(".CarListingCardV2__carListingCardV2Root")
-                if not cards:
-                    print(f"[spinny] no cards for {cfg['slug']} page {page}, stopping")
-                    break
-                new_this_page = 0
-                for card in cards:
-                    listing = _parse_card(card)
-                    if listing and listing.source_url not in seen_urls:
+
+    with httpx.Client(headers=HEADERS, timeout=20, follow_redirects=True) as client:
+        for cfg in CITY_CONFIGS:
+            for listing in _fetch_pages(
+                client,
+                {"city": cfg["slug"], "car_category": "luxury", "fuel_type": "diesel"},
+                cfg["state"],
+            ):
+                if listing.source_url not in seen_urls:
+                    seen_urls.add(listing.source_url)
+                    results.append(listing)
+            time.sleep(0.3)
+
+            for target in NON_LUXURY_TARGETS:
+                for listing in _fetch_pages(
+                    client,
+                    {"city": cfg["slug"], "fuel_type": "diesel", **target},
+                    cfg["state"],
+                ):
+                    if listing.source_url not in seen_urls:
                         seen_urls.add(listing.source_url)
-                        listing.state = cfg["state"]
                         results.append(listing)
-                        new_this_page += 1
-                if new_this_page == 0:
-                    break
-            except Exception as e:
-                print(f"[spinny] error {cfg['slug']} page {page}: {e}")
-                break
+                time.sleep(0.3)
+
     return results
