@@ -136,7 +136,7 @@ def _parse_row(row) -> CarListing | None:
 
 async def _fetch_crawl4ai(url: str) -> str:
     from crawl4ai import AsyncWebCrawler, CrawlerRunConfig
-    config = CrawlerRunConfig(page_timeout=30000, simulate_user=True, magic=True)
+    config = CrawlerRunConfig(page_timeout=30000)
     async with AsyncWebCrawler() as crawler:
         result = await crawler.arun(url=url, config=config)
         return result.html or ""
