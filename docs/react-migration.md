@@ -215,12 +215,16 @@ npm install -g degit
 
 ## 2. Bootstrap with degit
 
+**Target repo:** https://github.com/ANSH4195/car-hunter-ui
+
 ```bash
 # Clone the starter into a new directory (no git history, no .git folder)
 degit ANSH4195/vite-tailwind-biome-starter car-hunter-ui
 
 cd car-hunter-ui
-git init && git add -A && git commit -m "chore: init from vite-tailwind-biome-starter"
+git init && git remote add origin https://github.com/ANSH4195/car-hunter-ui.git
+git add -A && git commit -m "chore: init from vite-tailwind-biome-starter"
+git push -u origin main
 ```
 
 Stack in the starter: React 19 + TypeScript + Vite 7 (SWC) + Tailwind CSS 4 + Biome 2.
