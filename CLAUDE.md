@@ -1,20 +1,19 @@
 # Car Hunter — Claude Context
 
-Personal used car alert system for Karnataka, India. Scrapes 7 Indian used car marketplaces daily for specific diesel vehicles, deduplicates listings, and displays them in a Streamlit dashboard.
+Personal used car alert system for Karnataka, India. Scrapes 7 Indian used car marketplaces daily for specific diesel vehicles, deduplicates listings, and stores them in Supabase.
 
 ## What it does
 - Scrapes Cars24, Spinny, OLX, Carwale, Cardekho, TeamBHP, 9thgear daily via GitHub Actions (10 AM IST)
 - Targets: Audi (any), BMW (any), Mercedes-Benz (any), Volvo (any), Volkswagen (Tiguan), Skoda (Octavia), Jeep (Compass), Ford (Endeavour), Mitsubishi (Pajero Sport) — diesel, 2017+, <150k km, Karnataka cities
 - Deduplicates via SHA256 hash of make+model+variant+year+color+transmission+kms_bucket(±5k)
-- Stores in Supabase (Postgres); shows in Streamlit with soft-delete
+- Stores in Supabase (Postgres) with soft-delete support
 
 ## Stack
-- Python 3.11, httpx, BeautifulSoup, crawl4ai + Playwright (JS-heavy sites), Google Gemini API (AI parsing), Supabase, Streamlit
+- Python 3.11, httpx, BeautifulSoup, crawl4ai + Playwright (JS-heavy sites), Google Gemini API (AI parsing), Supabase
 
 ## Key Files
 | File | Role |
 |------|------|
-| `app.py` | Streamlit UI — filters, sort, display, soft-delete |
 | `scrape.py` | Orchestrator — runs all scrapers, filters, upserts to DB |
 | `db.py` | Supabase ops — upsert, soft_delete, fetch_active |
 | `filters.py` | Validation — TARGET dict, MIN_YEAR=2019, MAX_KMS=150000, FUEL=diesel |
@@ -39,11 +38,10 @@ Personal used car alert system for Karnataka, India. Scrapes 7 Indian used car m
 
 ## Run Locally
 ```bash
-pip install -r requirements.txt
+pip install -r requirements-scrape.txt
 playwright install chromium
 cp .env.example .env  # fill in keys
 python scrape.py       # run scraper
-streamlit run app.py   # UI at localhost:8501
 ```
 
 ## Changelog

@@ -1,5 +1,8 @@
 # Changelog
 
+## 2026-05-09
+- Removed Streamlit UI entirely (`app.py`, `requirements.txt`, `requirements-app.txt`, `runtime.txt`, `static/`); scraper-only repo going forward
+
 ## 2026-05-08
 - Cars24: rewrote scraper from crawl4ai+Playwright to pure httpx; Next.js RSC endpoint (`RSC: 1` header) returns all listing JSON server-side — eliminates Azure IP bot-block that caused 0 results on GitHub Actions
 - Spinny: rewrote scraper from crawl4ai+Playwright to direct REST API (`api.spinny.com/v3/api/listing/v6/`); luxury brands via `car_category=luxury`, non-luxury targets via explicit make+model params — also bypasses bot-block on Actions
