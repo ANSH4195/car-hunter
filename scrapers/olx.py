@@ -129,34 +129,42 @@ def _parse_card(card) -> CarListing | None:
         return None
 
 
-async def _fetch_rendered(url: str) -> str:
+async def _scrape_async(seen_urls: set) -> list[CarListing]:
     from crawl4ai import AsyncWebCrawler, CrawlerRunConfig
     config = CrawlerRunConfig(page_timeout=30000)
+    results: list[CarListing] = []
     async with AsyncWebCrawler() as crawler:
-        result = await crawler.arun(url=url, config=config)
-        return result.html or ""
+        for cfg in STATE_CONFIGS:
+            base_url = _listing_url(cfg["slug"])
+            page = 1
+            while True:
+                url = f"{base_url}&page={page}"
+                try:
+                    result = await crawler.arun(url=url, config=config)
+                    html = result.html or ""
+                    soup = BeautifulSoup(html, "html.parser")
+                    cards = soup.select('[data-aut-id="itemBox2"]')
+                    if not cards:
+                        print(f"[olx] no cards on page {page} for {cfg['state']}, stopping")
+                        break
+                    print(f"[olx] {cfg['state']} page {page}: {len(cards)} cards")
+                    for card in cards:
+                        if _extract_url(card) in seen_urls:
+                            continue
+                        listing = _parse_card(card)
+                        if listing:
+                            listing.state    = cfg["state"]
+                            listing.location = cfg["state"]
+                            results.append(listing)
+                    if len(cards) < 40:
+                        break
+                    page += 1
+                except Exception as e:
+                    print(f"[olx] error ({cfg['state']} page {page}): {e}")
+                    break
+    return results
 
 
 def scrape() -> list[CarListing]:
     seen_urls = db.fetch_source_urls(SOURCE)
-    results: list[CarListing] = []
-    for cfg in STATE_CONFIGS:
-        url = _listing_url(cfg["slug"])
-        try:
-            html = asyncio.run(_fetch_rendered(url))
-            soup = BeautifulSoup(html, "html.parser")
-            cards = soup.select('[data-aut-id="itemBox2"]')
-            if not cards:
-                print(f"[olx] no cards found for {cfg['state']}")
-                continue
-            for card in cards:
-                if _extract_url(card) in seen_urls:
-                    continue
-                listing = _parse_card(card)
-                if listing:
-                    listing.state    = cfg["state"]
-                    listing.location = cfg["state"]
-                    results.append(listing)
-        except Exception as e:
-            print(f"[olx] error ({cfg['state']}): {e}")
-    return results
+    return asyncio.run(_scrape_async(seen_urls))

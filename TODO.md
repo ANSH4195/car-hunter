@@ -30,6 +30,7 @@
 
 ## Implemented
 
+- **B4** OLX pagination — added `&page=N` loop; breaks when cards < 40 or empty; reuses single crawl4ai `AsyncWebCrawler` across all pages and states. Capture rate: ~15% → ~100%.
 - **B3a** Cars24 + Spinny — rewrote both scrapers to pure httpx (no crawl4ai/Playwright):
   - Cars24: Next.js RSC endpoint (`RSC: 1` header) returns full listing JSON; `_extract_content()` finds the `content` array via `json.JSONDecoder.raw_decode`; supports `searchAfter` cursor pagination
   - Spinny: `api.spinny.com/v3/api/listing/v6/` REST API; luxury brands via `car_category=luxury`, non-luxury targets (VW/Skoda/Ford/Mitsubishi) via explicit `make=`+`model=` params

@@ -1,5 +1,8 @@
 # Changelog
 
+## 2026-05-16
+- OLX: fixed pagination — scraper now loops through all pages (`&page=N`) instead of stopping at page 1; reuses a single Playwright browser instance across all pages to reduce overhead; capture rate increases from ~15% to ~100% (~476 listings vs 72 previously)
+
 ## 2026-05-09
 - Removed Streamlit UI entirely (`app.py`, `requirements.txt`, `requirements-app.txt`, `runtime.txt`, `static/`); scraper-only repo going forward
 
