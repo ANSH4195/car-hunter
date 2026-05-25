@@ -48,7 +48,7 @@ python scrape.py       # run scraper
 Maintain `CHANGELOG.md` in the repo root. Format: `## YYYY-MM-DD` header, bullet points. Only log significant changes (new features, bug fixes with user impact, schema changes) — not minor refactors or dependency bumps.
 
 ## Target Criteria (filters.py)
-- Makes/Models: Audi Q3/Q5/Q7/Q8 (SUVs only, no sedans), VW Tiguan, Skoda Octavia, Jeep Compass, Mitsubishi Pajero Sport
+- Makes/Models: Audi Q3/Q5/Q7/Q8 (SUVs only), BMW X1/X3/X5/X7 (SUVs only), Mercedes GLA/GLC/GLE/GLS (SUVs only), Volvo (any), VW Tiguan, Skoda Kodiaq, Jeep Compass, Ford Endeavour, Mitsubishi Pajero Sport
 - Fuel: diesel only
 - Year: >= 2017
 - KMs: <= 110,000

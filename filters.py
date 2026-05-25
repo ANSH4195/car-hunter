@@ -3,11 +3,11 @@ from scrapers.base import CarListing
 # None = any model accepted; list = only those model prefixes accepted
 TARGET: dict[str, list[str] | None] = {
     "audi":          ["q"],          # SUVs only (Q3, Q5, Q7, Q8…); excludes A-series sedans
-    "bmw":           None,          # any model
-    "mercedes-benz": None,          # any model
+    "bmw":           ["x"],          # SUVs only (X1, X3, X5, X7…); excludes 3/5/7-series sedans
+    "mercedes-benz": ["g"],          # SUVs only (GLA, GLB, GLC, GLE, GLS, G-Class); excludes C/E/S-class sedans
     "volvo":         None,          # any model
     "volkswagen":    ["tiguan"],
-    "skoda":         ["octavia"],
+    "skoda":         ["kodiaq"],
     "jeep":          ["compass"],
     "ford":          ["endeavour"],
     "mitsubishi":    ["pajero sport"],
