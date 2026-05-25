@@ -2,7 +2,7 @@ from scrapers.base import CarListing
 
 # None = any model accepted; list = only those model prefixes accepted
 TARGET: dict[str, list[str] | None] = {
-    "audi":          None,          # any model
+    "audi":          ["q"],          # SUVs only (Q3, Q5, Q7, Q8…); excludes A-series sedans
     "bmw":           None,          # any model
     "mercedes-benz": None,          # any model
     "volvo":         None,          # any model
