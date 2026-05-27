@@ -9,7 +9,7 @@ TARGET: dict[str, list[str] | None] = {
     "volkswagen":    ["tiguan"],
     "skoda":         ["kodiaq"],
     "jeep":          ["compass"],
-    "ford":          ["endeavour", "ecosport"],
+    "ford":          ["endeavour"],
     "mitsubishi":    ["pajero sport"],
 }
 

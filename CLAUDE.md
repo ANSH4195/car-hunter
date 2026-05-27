@@ -4,7 +4,7 @@ Personal used car alert system for Karnataka, India. Scrapes 6 Indian used car m
 
 ## What it does
 - Scrapes Cars24, Spinny, OLX, Carwale, TeamBHP, 9thgear daily via GitHub Actions (10 AM IST)
-- Targets: Audi (any), BMW (any), Mercedes-Benz (any), Volvo (any), Volkswagen (Tiguan), Skoda (Kodiaq), Jeep (Compass, any variant), Ford (Endeavour, EcoSport), Mitsubishi (Pajero Sport) — diesel, 2017+, <110k km, Karnataka cities
+- Targets: Audi (any), BMW (any), Mercedes-Benz (any), Volvo (any), Volkswagen (Tiguan), Skoda (Kodiaq), Jeep (Compass, any variant), Ford (Endeavour), Mitsubishi (Pajero Sport) — diesel, 2017+, <110k km, Karnataka cities
 - Deduplicates via SHA256 hash of make+model+variant+year+color+transmission+kms_bucket(±5k)
 - Stores in Supabase (Postgres) with soft-delete support
 
@@ -48,7 +48,7 @@ python scrape.py       # run scraper
 Maintain `CHANGELOG.md` in the repo root. Format: `## YYYY-MM-DD` header, bullet points. Only log significant changes (new features, bug fixes with user impact, schema changes) — not minor refactors or dependency bumps.
 
 ## Target Criteria (filters.py)
-- Makes/Models: Audi Q3/Q5/Q7/Q8 (SUVs only), BMW X1/X3/X5/X7 (SUVs only), Mercedes GLA/GLC/GLE/GLS (SUVs only), Volvo (any), VW Tiguan, Skoda Kodiaq, Jeep Compass (any variant), Ford Endeavour/EcoSport, Mitsubishi Pajero Sport
+- Makes/Models: Audi Q3/Q5/Q7/Q8 (SUVs only), BMW X1/X3/X5/X7 (SUVs only), Mercedes GLA/GLC/GLE/GLS (SUVs only), Volvo (any), VW Tiguan, Skoda Kodiaq, Jeep Compass (any variant), Ford Endeavour, Mitsubishi Pajero Sport
 - Fuel: diesel only
 - Year: >= 2017
 - KMs: <= 110,000

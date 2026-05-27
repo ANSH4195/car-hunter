@@ -26,7 +26,7 @@ def _listing_url(slug: str) -> str:
         f"https://www.olx.in/en-in/{slug}/cars_c84"
         "?filter=make_eq_audi-1_and_bmw_and_ford_and_jeep_and_mercedes-benz_and_skoda_and_volkswagen_and_volvo"
         f"%2Cmileage_max_{MAX_KMS}"
-        "%2Cmodel_eq_ford-ecosport_and_ford-endeavour_and_jeep-compass_and_skoda-kodiaq_and_volkswagen-tiguan"
+        "%2Cmodel_eq_ford-endeavour_and_jeep-compass_and_skoda-kodiaq_and_volkswagen-tiguan"
         "%2Cpetrol_eq_diesel"
         f"%2Cprice_max_{MAX_PRICE}"
         f"%2Cyear_between_{MIN_YEAR - 1}_to_{current_year}"
