@@ -9,7 +9,7 @@ TARGET: dict[str, list[str] | None] = {
     "volkswagen":    ["tiguan"],
     "skoda":         ["kodiaq"],
     "jeep":          ["compass"],
-    "ford":          ["endeavour"],
+    "ford":          ["endeavour", "ecosport"],
     "mitsubishi":    ["pajero sport"],
 }
 
@@ -49,10 +49,5 @@ def is_valid(car: CarListing) -> bool:
     allowed = TARGET[make]
     if allowed is not None and not any(model == t or model.startswith(t) for t in allowed):
         return False
-
-    # Jeep Compass: pre-2022 must be Limited Plus variant
-    if make == "jeep" and "compass" in model:
-        if car.year < 2022 and "limited plus" not in car.variant.lower():
-            return False
 
     return True
